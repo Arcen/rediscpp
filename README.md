@@ -1,7 +1,7 @@
 Redis CPP
 ========================
 Redis server that implemented by CPP.
-Will be supporting Multi-threading. But, not supporting percistence.
+Will be supporting multi-threading and not be supporting percistence.
 
-Not released yet
+Not released yet.
 

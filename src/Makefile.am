@@ -4,4 +4,5 @@ rediscpp_SOURCES = \
     network.cpp \
     main.cpp
 
-rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS
+rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS -std=c++0x
+
