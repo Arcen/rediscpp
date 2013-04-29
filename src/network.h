@@ -58,7 +58,7 @@ namespace rediscpp
 		int get_handle() const { return s; }
 	private:
 		void * extra;
-		std::vector<uint8_t> recv_buffer;
+		std::deque<uint8_t> recv_buffer;
 		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
 		std::vector<iovec> send_vectors;
 		std::function<void(socket_type * s,int)> on_event_function;
@@ -70,9 +70,12 @@ namespace rediscpp
 		void set_callback(std::function<void(socket_type * s,int)> function);
 		void on_event(int flag);
 		void set_poll(std::shared_ptr<poll_type> poll);
-		bool send(const void * buf, size_t len);
 		bool send();
 		bool recv();
+		bool send(const void * buf, size_t len);
+		std::deque<uint8_t> & get_recv() { return recv_buffer; }
+		bool recv_done() const { return finished_to_read; }
+		std::shared_ptr<socket_type> get() { return self.lock(); }
 	};
 
 	class poll_type

@@ -1,4 +1,5 @@
 #include "network.h"
+#include "log.h"
 #include <sys/types.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -140,6 +141,7 @@ namespace rediscpp
 	{
 		int s = ::socket(address.get_family(), stream ? SOCK_STREAM : SOCK_DGRAM, 0);
 		if (s < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::socket failed : " + string_error(errno));
 			return std::shared_ptr<socket_type>();
 		}
 		std::shared_ptr<socket_type> r = std::shared_ptr<socket_type>(new socket_type(s));
@@ -150,12 +152,14 @@ namespace rediscpp
 	{
 		int flags = fcntl(s, F_GETFL, 0);
 		if (flags == -1) {
+			lputs(__FILE__, __LINE__, error_level, "::fcntl(F_GETFL) failed : " + string_error(errno));
 			return false;
 		}
 		if (((flags & O_NONBLOCK) != 0) == blocking) {
 			flags ^= O_NONBLOCK;
 			int r = fcntl(s, F_SETFL, flags);
 			if (r < 0) {
+				lputs(__FILE__, __LINE__, error_level, "::fcntl(F_SETFL) failed : " + string_error(errno));
 				return false;
 			}
 		}
@@ -166,6 +170,7 @@ namespace rediscpp
 		int option = reuse ? 1 : 0;
 		int r = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(SO_REUSEADDR) failed : " + string_error(errno));
 			return false;
 		}
 		return true;
@@ -173,6 +178,7 @@ namespace rediscpp
 	bool socket_type::bind(std::shared_ptr<address_type> address)
 	{
 		if ((::bind(s, address->get_sockaddr(), address->get_sockaddr_size())) < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::bind failed : " + string_error(errno));
 			return false;
 		}
 		local = address;
@@ -181,6 +187,7 @@ namespace rediscpp
 	bool socket_type::listen(int queue_count)
 	{
 		if ((::listen(s, queue_count)) < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::listen failed : " + string_error(errno));
 			return false;
 		}
 		return true;
@@ -195,6 +202,7 @@ namespace rediscpp
 			return std::shared_ptr<socket_type>();
 		}
 		std::shared_ptr<socket_type> child(new socket_type(fd));
+		child->self = child;
 		child->peer = addr;
 		return child;
 	}
@@ -258,17 +266,21 @@ namespace rediscpp
 		if (finished_to_read) {
 			return true;
 		}
-		size_t current_size = recv_buffer.size();
-		size_t try_to_read_size = 1024;
-		recv_buffer.resize(current_size + try_to_read_size);
-		ssize_t r = ::read(s, &recv_buffer[current_size], try_to_read_size);
-		if (0 < r) {
-			recv_buffer.resize(current_size + r);
-		} else {
-			recv_buffer.resize(current_size);
-		}
-		if (r == 0) {
-			finished_to_read = true;
+		uint8_t buf[1024];
+		while (true) {
+			size_t try_to_read_size = 1024;
+			ssize_t r = ::read(s, buf, try_to_read_size);
+			if (0 < r) {
+				recv_buffer.insert(recv_buffer.end(), &buf[0], &buf[0] + r);
+			}
+			if (r == 0) {
+				finished_to_read = true;
+				//lputs(__FILE__, __LINE__, debug_level, "client read end");
+				break;
+			}
+			if (r < 0) {
+				break;
+			}
 		}
 		return true;
 	}
