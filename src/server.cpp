@@ -7,6 +7,13 @@ namespace rediscpp
 {
 	server_type::server_type()
 	{
+		build_function_map();
+	}
+	void server_type::build_function_map()
+	{
+		function_map["PING"] = &server_type::function_ping;
+		function_map["QUIT"] = &server_type::function_quit;
+		function_map["TEST"] = &server_type::function_quit;
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
 	{
@@ -59,7 +66,7 @@ namespace rediscpp
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			s->recv();
 			while (s->should_recv()) {
-				clients[s]->parse();
+				clients[s]->parse(this);
 			}
 			if (s->recv_done()) {
 				auto sp = s->get();
@@ -99,7 +106,7 @@ namespace rediscpp
 			lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
 		}
 	}
-	bool client_type::parse()
+	bool client_type::parse(server_type * server)
 	{
 		while (true) {
 			if (argument_count == 0) {
@@ -149,9 +156,8 @@ namespace rediscpp
 					++argument_index;
 				}
 			} else {
-				if (!execute()) {
-					std::string response = "-ERR unknown\r\n";
-					client->send(response.c_str(), response.size());
+				if (!server->execute(this)) {
+					response_status("ERR unknown");
 				}
 				arguments.clear();
 				argument_count = 0;
@@ -160,6 +166,21 @@ namespace rediscpp
 			}
 		}
 		return true;
+	}
+	void client_type::response_status(const std::string & state)
+	{
+		std::string response = "-" + state + "\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_integer0()
+	{
+		std::string response = ":0\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_integer1()
+	{
+		std::string response = ":1\r\n";
+		client->send(response.c_str(), response.size());
 	}
 	bool client_type::parse_line(std::string & line)
 	{
@@ -194,22 +215,31 @@ namespace rediscpp
 		buf.erase(buf.begin(), end + 2);
 		return true;
 	}
-	bool client_type::execute()
+	bool server_type::execute(client_type * client)
 	{
+		std::list<std::pair<std::string,bool>> & arguments = client->get_arguments();
 		if (arguments.empty()) {
 			return false;
 		}
 		std::string command = arguments.front().first;
 		arguments.pop_front();
 		std::transform(command.begin(), command.end(), command.begin(), toupper);
-		if (command == "EXISTS") {
-			if (arguments.empty()) {
-				return false;
-			}
-			std::string response = ":0\r\n";
-			client->send(response.c_str(), response.size());
-			return true;
+		auto it = function_map.find(command);
+		if (it != function_map.end()) {
+			auto func = it->second;
+			return ((this)->*func)(client);
 		}
 		return false;
+	}
+	bool server_type::function_ping(client_type * client)
+	{
+		client->response_status("PONG");
+		return true;
+	}
+	bool server_type::function_quit(client_type * client)
+	{
+		client->response_status("OK");
+		client->close_after_send();
+		return true;
 	}
 }

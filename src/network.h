@@ -44,11 +44,13 @@ namespace rediscpp
 		std::weak_ptr<socket_type> self;
 		std::weak_ptr<poll_type> poll;
 		bool finished_to_read;
+		bool finished_to_write;
 		socket_type();
 		socket_type(int s);
 	public:
 		~socket_type();
 		void close();
+		bool shutdown(bool reading, bool writing);
 		static std::shared_ptr<socket_type> create(const address_type & address, bool stream = true);
 		bool set_blocking(bool blocking = true);
 		bool set_reuse(bool reuse = true);
@@ -76,6 +78,7 @@ namespace rediscpp
 		std::deque<uint8_t> & get_recv() { return recv_buffer; }
 		bool recv_done() const { return finished_to_read; }
 		std::shared_ptr<socket_type> get() { return self.lock(); }
+		void close_after_send();
 	};
 
 	class poll_type

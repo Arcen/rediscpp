@@ -124,6 +124,7 @@ namespace rediscpp
 	socket_type::socket_type(int s_)
 		: s(s_)
 		, finished_to_read(false)
+		, finished_to_write(false)
 		, extra(0)
 	{
 	}
@@ -228,21 +229,42 @@ namespace rediscpp
 		send_buffers.push_back(std::make_pair<std::vector<uint8_t>, size_t>(std::vector<uint8_t>(), 0));
 		std::vector<uint8_t> & last = send_buffers.back().first;
 		last.assign(reinterpret_cast<const uint8_t*>(buf), reinterpret_cast<const uint8_t*>(buf) + len);
-		if (send_buffers.size() == 1) {
+		if (!send_buffers.empty()) {
 			send();
+			if (should_send()) {
+				auto poll = this->poll.lock();
+				auto self = this->self.lock();
+				if (poll.get() && self.get()) {
+					poll->modify(self);
+				}
+			} else if (finished_to_write) {
+				shutdown(true, true);
+			}
+		}
+		return true;
+	}
+	bool socket_type::shutdown(bool reading, bool writing)
+	{
+		int r = ::shutdown(s, (reading && writing) ? SHUT_RDWR : (reading ? SHUT_RD : (writing ? SHUT_WR : 0)));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::listen failed : " + string_error(errno));
+			return false;
 		}
 		return true;
 	}
 	bool socket_type::send()
 	{
-		send_vectors.resize(send_buffers.size());
-		for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
-			auto & src = send_buffers[i];
-			iovec & iv = send_vectors[i];
-			iv.iov_base = & src.first[0] + src.second;
-			iv.iov_len = src.first.size() - src.second;
+		ssize_t r = 0;
+		if (!send_buffers.empty()) {
+			send_vectors.resize(send_buffers.size());
+			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
+				auto & src = send_buffers[i];
+				iovec & iv = send_vectors[i];
+				iv.iov_base = & src.first[0] + src.second;
+				iv.iov_len = src.first.size() - src.second;
+			}
+			r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
 		}
-		ssize_t r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
 		if (r < 0) {
 			return false;
 		}
@@ -258,6 +280,15 @@ namespace rediscpp
 			}
 		}
 		if (send_buffers.empty()) {
+			if (finished_to_write) {
+				shutdown(true, true);
+			} else {
+				auto poll = this->poll.lock();
+				auto self = this->self.lock();
+				if (poll.get() && self.get()) {
+					poll->modify(self);
+				}
+			}
 		}
 		return true;
 	}
@@ -283,6 +314,11 @@ namespace rediscpp
 			}
 		}
 		return true;
+	}
+	void socket_type::close_after_send()
+	{
+		finished_to_write = true;
+		send();
 	}
 
 	std::shared_ptr<poll_type> poll_type::create(size_t capacity)
@@ -318,7 +354,10 @@ namespace rediscpp
 		epoll_event event;
 		memset(&event, 0, sizeof(event));
 		event.data.ptr = socket.get();
-		event.events = EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
+		event.events = EPOLLERR | EPOLLHUP | EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
+		if (socket->should_send()) {
+			lputs(__FILE__, __LINE__, error_level, "epoll ctl out");
+		}
 		int r = epoll_ctl(fd, op, socket->get_handle(), &event);
 		if (r < 0) {
 			return false;
