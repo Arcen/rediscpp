@@ -85,7 +85,7 @@ namespace rediscpp
 	{
 		int fd;
 		int count;
-		std::vector<epoll_event> events;///<ŽóM—p
+		std::vector<epoll_event> events;///<å—ä¿¡ç”¨
 		std::weak_ptr<poll_type> self;
 		poll_type(size_t capacity);
 	public:

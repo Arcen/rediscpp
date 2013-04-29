@@ -74,8 +74,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include="configure.ac" />
     <None Include="doc\commands.txt" />
     <None Include="doc\protocol.txt" />
+    <None Include="doc\specification.txt" />
+    <None Include="Makefile.am" />
+    <None Include="README.md" />
+    <None Include="src\Makefile.am" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\log.cpp" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\network.cpp" />
+    <ClCompile Include="src\server.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\common.h" />
+    <ClInclude Include="src\log.h" />
+    <ClInclude Include="src\network.h" />
+    <ClInclude Include="src\server.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

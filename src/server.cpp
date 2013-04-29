@@ -6,14 +6,9 @@
 namespace rediscpp
 {
 	server_type::server_type()
+		: max_db(1)
 	{
 		build_function_map();
-	}
-	void server_type::build_function_map()
-	{
-		function_map["PING"] = &server_type::function_ping;
-		function_map["QUIT"] = &server_type::function_quit;
-		function_map["ECHO"] = &server_type::function_echo;
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
 	{
@@ -82,13 +77,13 @@ namespace rediscpp
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLOUT");
 			s->send();
 		}
-		if (events & EPOLLRDHUP) {//‘Šè‘¤‚ªrecv‚ğs‚í‚È‚­‚È‚Á‚½
+		if (events & EPOLLRDHUP) {//ç›¸æ‰‹å´ãŒrecvã‚’è¡Œã‚ãªããªã£ãŸ
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLRDHUP");
 		}
-		if (events & EPOLLERR) {//‘Šè‚ÉƒGƒ‰[‚ª‹N‚±‚Á‚½
+		if (events & EPOLLERR) {//ç›¸æ‰‹ã«ã‚¨ãƒ©ãƒ¼ãŒèµ·ã“ã£ãŸ
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLERR");
 		}
-		if (events & EPOLLHUP) {//ƒnƒ“ƒOƒAƒbƒv
+		if (events & EPOLLHUP) {//ãƒãƒ³ã‚°ã‚¢ãƒƒãƒ—
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLHUP");
 		}
 	}
@@ -101,7 +96,8 @@ namespace rediscpp
 			client->set_blocking(false);
 			client->set_extra(this);
 			poll->append(client);
-			clients[client.get()].reset(new client_type(client));
+			client_type * ct = new client_type(client, password);
+			clients[client.get()].reset(ct);
 		} else {
 			lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
 		}
@@ -121,6 +117,7 @@ namespace rediscpp
 						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
 						return false;
 					}
+					arguments.resize(argument_count);
 				} else {
 					lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
 					return false;
@@ -157,7 +154,7 @@ namespace rediscpp
 				}
 			} else {
 				if (!server->execute(this)) {
-					response_status("ERR unknown");
+					response_error("ERR unknown");
 				}
 				arguments.clear();
 				argument_count = 0;
@@ -169,7 +166,22 @@ namespace rediscpp
 	}
 	void client_type::response_status(const std::string & state)
 	{
-		std::string response = "-" + state + "\r\n";
+		const std::string & response = "+" + state + "\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_error(const std::string & state)
+	{
+		const std::string & response = "-" + state + "\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_ok()
+	{
+		static const std::string & response = "+OK\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_pong()
+	{
+		static const std::string & response = "+PONG\r\n";
 		client->send(response.c_str(), response.size());
 	}
 	void client_type::response_integer0()
@@ -182,13 +194,18 @@ namespace rediscpp
 		std::string response = ":1\r\n";
 		client->send(response.c_str(), response.size());
 	}
-	void client_type::response_bulk(const std::string & bulk)
+	void client_type::response_bulk(const std::string & bulk, bool not_null)
 	{
-		std::string response = format("$%d\r\n", bulk.size());
-		client->send(response.c_str(), response.size());
-		client->send(bulk.c_str(), bulk.size());
-		response = "\r\n";
-		client->send(response.c_str(), response.size());
+		if (not_null) {
+			std::string response = format("$%d\r\n", bulk.size());
+			client->send(response.c_str(), response.size());
+			client->send(bulk.c_str(), bulk.size());
+			response = "\r\n";
+			client->send(response.c_str(), response.size());
+		} else {
+			static const std::string & response = "$-1\r\n";
+			client->send(response.c_str(), response.size());
+		}
 	}
 	bool client_type::parse_line(std::string & line)
 	{
@@ -225,39 +242,124 @@ namespace rediscpp
 	}
 	bool server_type::execute(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.empty()) {
-			return false;
-		}
-		auto command = arguments.front().first;
-		arguments.pop_front();
-		std::transform(command.begin(), command.end(), command.begin(), toupper);
-		auto it = function_map.find(command);
-		if (it != function_map.end()) {
-			auto func = it->second;
-			return ((this)->*func)(client);
+		try
+		{
+			auto & arguments = client->get_arguments();
+			if (arguments.empty()) {
+				throw std::runtime_error("ERR syntax error");
+			}
+			auto command = arguments.front().first;
+			std::transform(command.begin(), command.end(), command.begin(), toupper);
+			if (client->require_auth(command)) {
+				throw std::runtime_error("NOAUTH Authentication required.");
+			}
+			auto it = function_map.find(command);
+			if (it != function_map.end()) {
+				auto func = it->second;
+				return ((this)->*func)(client);
+			}
+		} catch (std::exception & e) {
+			client->response_error(e.what());
+			return true;
+		} catch (...) {
 		}
 		return false;
 	}
-	bool server_type::function_ping(client_type * client)
+	void server_type::build_function_map()
 	{
-		client->response_status("PONG");
+		function_map["AUTH"] = &server_type::function_auth;
+		function_map["ECHO"] = &server_type::function_echo;
+		function_map["PING"] = &server_type::function_ping;
+		function_map["QUIT"] = &server_type::function_quit;
+		function_map["SELECT"] = &server_type::function_select;
+	}
+	bool client_type::require_auth(const std::string & auth)
+	{
+		if (password.empty()) {
+			return false;
+		}
+		if (auth == "AUTH" || auth == "QUIT") {
+			return false;
+		}
 		return true;
 	}
+	bool client_type::auth(const std::string & password_)
+	{
+		if (password.empty()) {
+			return false;
+		}
+		if (password == password_) {
+			password.clear();
+			return true;
+		}
+		return false;
+	}
+	///èªè¨¼ 
+	///@param[in] password
+	///@note Available since 1.0.0.
+	bool server_type::function_auth(client_type * client)
+	{
+		if (!client->require_auth(std::string())) {
+			throw std::runtime_error("ERR not required");
+		}
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & password = arguments[1];
+		if (!password.second || !client->auth(password.first)) {
+			throw std::runtime_error("ERR not match");
+		}
+		client->response_ok();
+		return true;
+	}
+	///ã‚¨ã‚³ãƒ¼ 
+	///@param[in] message
+	///@note Available since 1.0.0.
+	bool server_type::function_echo(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & message = arguments[1];
+		client->response_bulk(message.first, message.second);
+		return true;
+	}
+	///Ping
+	///@note Available since 1.0.0.
+	bool server_type::function_ping(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 1) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		client->response_pong();
+		return true;
+	}
+	///çµ‚äº†
+	///@note Available since 1.0.0.
 	bool server_type::function_quit(client_type * client)
 	{
 		client->response_status("OK");
 		client->close_after_send();
 		return true;
 	}
-	bool server_type::function_echo(client_type * client)
+	///ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹é¸æŠ
+	///@param[in] index
+	///@note Available since 1.0.0.
+	bool server_type::function_select(client_type * client)
 	{
 		auto & arguments = client->get_arguments();
-		if (arguments.empty()) {
-			return false;
+		if (arguments.size() != 1) {
+			throw std::runtime_error("ERR syntax error");
 		}
-		auto bulk = arguments.front().first;
-		client->response_bulk(bulk);
+		int index = atoi(arguments[1].first.c_str());
+		if (index < 0 || max_db <= index) {
+			throw std::runtime_error("ERR index out of range");
+		}
+		client->select(index);
+		client->response_status("OK");
 		return true;
 	}
 }
