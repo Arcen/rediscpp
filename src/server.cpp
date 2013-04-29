@@ -13,7 +13,7 @@ namespace rediscpp
 	{
 		function_map["PING"] = &server_type::function_ping;
 		function_map["QUIT"] = &server_type::function_quit;
-		function_map["TEST"] = &server_type::function_quit;
+		function_map["ECHO"] = &server_type::function_echo;
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
 	{
@@ -182,6 +182,14 @@ namespace rediscpp
 		std::string response = ":1\r\n";
 		client->send(response.c_str(), response.size());
 	}
+	void client_type::response_bulk(const std::string & bulk)
+	{
+		std::string response = format("$%d\r\n", bulk.size());
+		client->send(response.c_str(), response.size());
+		client->send(bulk.c_str(), bulk.size());
+		response = "\r\n";
+		client->send(response.c_str(), response.size());
+	}
 	bool client_type::parse_line(std::string & line)
 	{
 		auto & buf = client->get_recv();
@@ -217,11 +225,11 @@ namespace rediscpp
 	}
 	bool server_type::execute(client_type * client)
 	{
-		std::list<std::pair<std::string,bool>> & arguments = client->get_arguments();
+		auto & arguments = client->get_arguments();
 		if (arguments.empty()) {
 			return false;
 		}
-		std::string command = arguments.front().first;
+		auto command = arguments.front().first;
 		arguments.pop_front();
 		std::transform(command.begin(), command.end(), command.begin(), toupper);
 		auto it = function_map.find(command);
@@ -240,6 +248,16 @@ namespace rediscpp
 	{
 		client->response_status("OK");
 		client->close_after_send();
+		return true;
+	}
+	bool server_type::function_echo(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.empty()) {
+			return false;
+		}
+		auto bulk = arguments.front().first;
+		client->response_bulk(bulk);
 		return true;
 	}
 }

@@ -29,6 +29,7 @@ namespace rediscpp
 		void response_status(const std::string & state);
 		void response_integer0();
 		void response_integer1();
+		void response_bulk(const std::string & bulk);
 		void close_after_send() { client->close_after_send(); }
 	private:
 		bool parse_line(std::string & line);
@@ -54,6 +55,7 @@ namespace rediscpp
 		void build_function_map();
 		bool function_ping(client_type * client);
 		bool function_quit(client_type * client);
+		bool function_echo(client_type * client);
 	};
 }
 
