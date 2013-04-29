@@ -1,0 +1,70 @@
+* redis commands
+
+http://redis.io/commands
+
+* KEYS
+
+** DEL (key)+
+キーを削除
+    戻り値：整数値として削除したキーの数を返す
+
+** EXISTS key
+キーの存在確認
+    戻り値：整数値として1は存在、0は不在を返す
+
+** EXPIRE key seconds
+キーの有効期限を設定する
+    戻り値：整数値として1は成功、0は不在かエラーを返す
+
+** EXPIREAT key timestamp
+キーの有効期限を設定する(EXPIREと同じだがUnixtimeで指定する)
+
+** KEYS pattern
+全探索になるため、デバッグ用途のみで使うことを推奨する
+パターンはglob-styleを使う
+    http://linuxjm.sourceforge.jp/html/LDP_man-pages/man3/glob.3.html
+    globはパスに特化した機能もあり、ホームディレクトリが展開されることはセキュリティリスクに繋がるため、そのままの実装は行わない
+
+** MOVE key db
+    他のDBへキーを移動する
+
+** PERSIST key
+有効期限を消去する
+    戻り値：整数値として1は成功、0は不在かエラーを返す
+
+** RANDOMKEY
+DBからランダムにキーを返す
+
+** RENAME key newkey
+キーの名称を変更する
+
+** RENAMENX key newkey
+新しいキーが存在しない場合だけ、名称を変更する
+
+** TTL key
+有効期限の取得
+
+** TYPE key
+キーの種類を返す
+    戻り値：状態として、string, list, set, zset, hash, noneを返す
+
+** PEXPIRE key milliseconds
+EXPIREと同じだが、ミリ秒単位
+
+** PEXPIREAT key milliseconds-timestamp
+EXPIREATと同じだが、ミリ秒単位
+
+** PTTL key
+ミリ秒単位で、有効期限の取得
+
+非サポートコマンド
+DUMP
+    内部形式の出力
+MIGRATE
+    DUMP/RESTOREを内部で使うため
+OBJECT
+    内部情報の表示のため
+RESTORE
+    内部形式の入力
+SORT
+    複雑なため
