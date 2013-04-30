@@ -228,9 +228,13 @@ namespace rediscpp
 			response = "\r\n";
 			client->send(response.c_str(), response.size());
 		} else {
-			static const std::string & response = "$-1\r\n";
-			client->send(response.c_str(), response.size());
+			response_null();
 		}
+	}
+	void client_type::response_null()
+	{
+		static const std::string & response = "$-1\r\n";
+		client->send(response.c_str(), response.size());
 	}
 	void client_type::response_null_multi_bulk()
 	{
@@ -331,6 +335,18 @@ namespace rediscpp
 		function_map["DISCARD"] = &server_type::function_discard;
 		function_map["WATCH"] = &server_type::function_watch;
 		function_map["UNWATCH"] = &server_type::function_unwatch;
+		//keys API
+		function_map["DEL"] = &server_type::function_del;
+		function_map["EXISTS"] = &server_type::function_exists;
+		function_map["EXPIRE"] = &server_type::function_expire;
+		function_map["EXPIREAT"] = &server_type::function_expireat;
+		function_map["PERSIST"] = &server_type::function_persist;
+		function_map["TTL"] = &server_type::function_ttl;
+		function_map["PTTL"] = &server_type::function_pttl;
+		function_map["MOVE"] = &server_type::function_move;
+		function_map["RANDOMKEY"] = &server_type::function_randomkey;
+		function_map["RENAME"] = &server_type::function_rename;
+		function_map["RENAMENX"] = &server_type::function_renamenx;
 	}
 	bool client_type::require_auth(const std::string & auth)
 	{
@@ -426,7 +442,7 @@ namespace rediscpp
 	bool server_type::function_dbsize(client_type * client)
 	{
 		auto & db = databases[client->get_db_index()];
-		client->response_integer(db.values.size());
+		client->response_integer(db.get_dbsize());
 		return true;
 	}
 	///データベースの全キー消去 
@@ -434,7 +450,7 @@ namespace rediscpp
 	bool server_type::function_flushall(client_type * client)
 	{
 		for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
-			it->values.clear();
+			it->clear();
 		}
 		client->response_ok();
 		return true;
@@ -444,7 +460,7 @@ namespace rediscpp
 	bool server_type::function_flushdb(client_type * client)
 	{
 		auto & db = databases[client->get_db_index()];
-		db.values.clear();
+		db.clear();
 		client->response_ok();
 		return true;
 	}
@@ -529,15 +545,11 @@ namespace rediscpp
 			auto key = std::get<0>(watch);
 			auto index = std::get<1>(watch);
 			auto & db = databases[index];
-			auto vit = db.values.find(key);
-			if (vit == db.values.end()) {
+			auto value = db.get(key);
+			if (!value.get()) {
 				client->response_null_multi_bulk();
 				client->discard();
 				return true;
-			}
-			auto & value = vit->second;
-			if (!value.get()) {
-				throw std::runtime_error(format("ERR incorrect database structure %s", key.c_str()));
 			}
 			auto watching_time = std::get<2>(watch);
 			if (watching_time < value->last_modified_time) {
@@ -593,6 +605,320 @@ namespace rediscpp
 	{
 		client->unwatch();
 		client->response_ok();
+		return true;
+	}
+	///キーを削除する
+	///@note Available since 1.0.0.
+	bool server_type::function_del(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		int64_t removed = 0;
+		auto & db = databases[client->get_db_index()];
+		for (int i = 1, n = arguments.size(); i < n; ++i) {
+			auto & key = arguments[i];
+			if (key.second == false) {
+				continue;
+			}
+			if (db.erase(key.first)) {
+				++removed;
+			}
+		}
+		client->response_integer(removed);
+		return true;
+	}
+	///キーの存在確認
+	///@note Available since 1.0.0.
+	bool server_type::function_exists(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		if (key.second == false) {
+			client->response_integer0();
+			return true;
+		}
+		if (db.get(key.first).get()) {
+			client->response_integer1();
+		} else {
+			client->response_integer0();
+		}
+		return true;
+	}
+	bool value_interface::is_expired()
+	{
+		return expiring && expire_time <= timeval_type();
+	}
+	void value_interface::expire(const timeval_type & at)
+	{
+		expiring = true;
+		expire_time = at;
+	}
+	void value_interface::persist()
+	{
+		expiring = false;
+	}
+	///キーの有効期限設定
+	///@note Available since 1.0.0.
+	bool server_type::function_expire(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		timeval_type tv;
+		tv.tv_sec += strtoll(arguments[2].first.c_str(), NULL, 10);
+		value->expire(tv);
+		client->response_integer1();
+		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
+		return true;
+	}
+	///キーの有効期限設定
+	///@note Available since 1.0.0.
+	bool server_type::function_expireat(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		timeval_type tv(strtoll(arguments[2].first.c_str(), NULL, 10), 0);
+		value->expire(tv);
+		client->response_integer1();
+		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
+		return true;
+	}
+	void timeval_type::add_msec(int64_t msec)
+	{
+		int64_t usec = tv_usec + (msec % 1000) * 1000;
+		if (1000000 <= usec) {
+			tv_usec = usec - 1000000;
+			tv_sec += msec / 1000 + 1;
+		} else {
+			tv_sec += msec / 1000;
+		}
+	}
+	///キーの有効期限設定
+	///@note Available since 2.6.0.
+	bool server_type::function_pexpire(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		timeval_type tv;
+		tv.add_msec(strtoll(arguments[2].first.c_str(), NULL, 10));
+		value->expire(tv);
+		client->response_integer1();
+		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
+		return true;
+	}
+	///キーの有効期限設定
+	///@note Available since 2.6.0.
+	bool server_type::function_pexpireat(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		int64_t msec = strtoll(arguments[2].first.c_str(), NULL, 10);
+		timeval_type tv(msec / 1000, (msec % 1000) * 1000);
+		value->expire(tv);
+		client->response_integer1();
+		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
+		return true;
+	}
+	///キーの有効期限消去
+	///@note Available since 2.2.0.
+	bool server_type::function_persist(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		value->persist();
+		client->response_integer1();
+		return true;
+	}
+	///キーの有効期限確認
+	///@note Available since 1.0.0.
+	bool server_type::function_ttl(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		timeval_type tv;
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer(-2);
+			return true;
+		}
+		if (!value->is_expiring()) {
+			client->response_integer(-1);
+			return true;
+		}
+		tv -= value->expire_time;
+		client->response_integer((tv.tv_sec * 2 + tv.tv_sec / 500000 + 1) / 2);
+		return true;
+	}
+	///キーの有効期限確認
+	///@note Available since 2.6.0.
+	bool server_type::function_pttl(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		timeval_type tv;
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer(-2);
+			return true;
+		}
+		if (!value->is_expiring()) {
+			client->response_integer(-1);
+			return true;
+		}
+		tv -= value->expire_time;
+		client->response_integer(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+		return true;
+	}
+	///キーの移動
+	///@note Available since 1.0.0.
+	bool server_type::function_move(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		int dst_index = atoi(arguments[2].first.c_str());
+		if (dst_index == client->get_db_index()) {
+			client->response_integer0();
+			return 0;
+		}
+		auto & dst_db = databases[dst_index];
+		if (dst_db.get(key).get()) {
+			client->response_integer0();
+			return true;
+		}
+		if (!dst_db.insert(key.first, value)) {
+			client->response_integer0();
+			return false;
+		}
+		db.erase(key.first);
+		client->response_integer1();
+		return true;
+	}
+	///ランダムなキーの取得
+	///@note Available since 1.0.0.
+	bool server_type::function_randomkey(client_type * client)
+	{
+		auto & db = databases[client->get_db_index()];
+		auto value = db.randomkey();
+		if (value.empty()) {
+			client->response_null();
+		} else {
+			client->response_bulk(value);
+		}
+		return true;
+	}
+	///キー名の変更
+	///@note Available since 1.0.0.
+	bool server_type::function_rename(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			throw std::runtime_error("ERR not exist");
+		}
+		auto newkey = arguments[2].first;
+		if (key.first == newkey) {
+			throw std::runtime_error("ERR same key");
+		}
+		db.erase(key.first);
+		db.insert(newkey, value);
+		client->response_ok();
+		return true;
+	}
+	///キー名の変更(上書き不可)
+	///@note Available since 1.0.0.
+	bool server_type::function_renamenx(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 3) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = databases[client->get_db_index()];
+		auto & key = arguments[1];
+		auto value = db.get(key);
+		if (!value.get()) {
+			throw std::runtime_error("ERR not exist");
+		}
+		auto newkey = arguments[2];
+		if (key.first == newkey.first) {
+			throw std::runtime_error("ERR same key");
+		}
+		auto dst_value = db.get(newkey);
+		if (dst_value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		db.erase(key.first);
+		db.insert(newkey.first, value);
+		client->response_integer1();
 		return true;
 	}
 }
