@@ -80,31 +80,28 @@ namespace rediscpp
 	}
 	void server_type::on_client_event(socket_type * s, int events)
 	{
+		if (events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+			//lputs(__FILE__, __LINE__, info_level, "client closed");
+			s->close();
+			clients.erase(s);
+			return;
+		}
 		if (events & EPOLLIN) {//recv
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			s->recv();
 			if (s->should_recv()) {
 				clients[s]->parse(this);
 			}
-			if (s->recv_done()) {
-				//sp->shutdown(true, false);
-				if (!s->should_send()) {
-					//lputs(__FILE__, __LINE__, info_level, "recv done, send buff empty, close now");
-					s->close();
-					clients.erase(s);
-					return;
-				}
+			if (s->recv_done() && !s->should_send()) {
+				//lputs(__FILE__, __LINE__, info_level, "client closed");
+				s->close();
+				clients.erase(s);
+				return;
 			}
 		}
 		if (events & EPOLLOUT) {//send
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLOUT");
 			s->send();
-		}
-		if (events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
-			//lputs(__FILE__, __LINE__, info_level, "client closed");
-			s->close();
-			clients.erase(s);
-			return;
 		}
 	}
 	void server_type::on_server_event(socket_type * s, int events)

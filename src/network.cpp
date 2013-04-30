@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <fcntl.h>
-#include <signal.h>
 
 namespace rediscpp
 {
@@ -365,7 +364,6 @@ namespace rediscpp
 		, count(0)
 		, events(1024)
 	{
-		signal(SIGPIPE, SIG_IGN);
 		fd = ::epoll_create1(EPOLL_CLOEXEC);
 		if (fd < 0) {
 			throw std::runtime_error(std::string("poll_type::epoll_create failed:") + string_error(errno));
