@@ -7,31 +7,47 @@
 namespace rediscpp
 {
 	class server_type;
+	typedef std::pair<std::string,bool> argument_type;
 	class value_interface
 	{
+	protected:
+		bool null;
+		timeval_type last_modified_time;
+		bool expiring;
+		timeval_type expire_time;
 	public:
 		value_interface()
-			: expiring(false)
+			: null(true)
+			, expiring(false)
 			, expire_time(last_modified_time)
 		{
 		}
 		virtual ~value_interface(){}
-		timeval_type last_modified_time;
-		bool expiring;
-		timeval_type expire_time;
 		bool is_expired();
 		bool is_expiring() const { return expiring; }
 		void expire(const timeval_type & at);
 		void persist();
+		bool is_null() const { return null; }
+		void set_null(bool null_ = true) { null = null_; }
+		timeval_type get_last_modified_time() const { return last_modified_time; }
 		virtual std::string get_type() = 0;
+		timeval_type ttl(timeval_type base) const {
+			base -= expire_time;
+			return base;
+		}
 	};
 	class string_type : public value_interface
 	{
+		std::string string_value;
+		int64_t int_value;
+		bool is_integer;
+		bool is_integer_and_string_mismatch;
 	public:
+		string_type(const argument_type & argument);
 		virtual ~string_type(){}
 		virtual std::string get_type() { return std::string("string"); }
+		const std::string & get();
 	};
-	typedef std::pair<std::string,bool> argument_type;
 	class database_type
 	{
 		std::map<std::string,std::shared_ptr<value_interface>> values;
@@ -183,7 +199,7 @@ namespace rediscpp
 		bool api_flushdb(client_type * client);
 		bool api_shutdown(client_type * client);
 		bool api_time(client_type * client);
-		//transaction api
+		//transactions api
 		bool api_multi(client_type * client);
 		bool api_exec(client_type * client);
 		bool api_discard(client_type * client);
@@ -204,6 +220,14 @@ namespace rediscpp
 		bool api_rename(client_type * client);
 		bool api_renamenx(client_type * client);
 		bool api_type(client_type * client);
+		//strings api
+		bool api_get(client_type * client);
+		bool api_set_internal(client_type * client, const argument_type & key, const argument_type & value, bool nx, bool xx, int64_t expire);
+		bool api_set(client_type * client);
+		bool api_setnx(client_type * client);
+		bool api_setex(client_type * client);
+		bool api_psetex(client_type * client);
+		bool api_strlen(client_type * client);
 	};
 }
 

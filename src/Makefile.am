@@ -7,8 +7,9 @@ rediscpp_SOURCES = \
     timeval.cpp \
     api_connection.cpp \
     api_server.cpp \
-    api_transaction.cpp \
+    api_transactions.cpp \
     api_keys.cpp \
+    api_strings.cpp \
     main.cpp
 
 rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS -std=c++0x

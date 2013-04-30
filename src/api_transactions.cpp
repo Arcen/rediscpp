@@ -61,7 +61,7 @@ namespace rediscpp
 				return true;
 			}
 			auto watching_time = std::get<2>(watch);
-			if (watching_time < value->last_modified_time) {
+			if (watching_time < value->get_last_modified_time()) {
 				client->response_null_multi_bulk();
 				client->discard();
 				return true;

@@ -347,5 +347,12 @@ namespace rediscpp
 		api_map["RENAME"] = &server_type::api_rename;
 		api_map["RENAMENX"] = &server_type::api_renamenx;
 		api_map["TYPE"] = &server_type::api_type;
+		//strings api
+		api_map["GET"] = &server_type::api_get;
+		api_map["SET"] = &server_type::api_set;
+		api_map["SETEX"] = &server_type::api_setex;
+		api_map["SETNX"] = &server_type::api_setnx;
+		api_map["PSETEX"] = &server_type::api_psetex;
+		api_map["STRLEN"] = &server_type::api_strlen;
 	}
 }

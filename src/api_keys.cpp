@@ -182,7 +182,7 @@ namespace rediscpp
 			client->response_integer(-1);
 			return true;
 		}
-		tv -= value->expire_time;
+		tv = value->ttl(tv);
 		client->response_integer((tv.tv_sec * 2 + tv.tv_sec / 500000 + 1) / 2);
 		return true;
 	}
@@ -206,7 +206,7 @@ namespace rediscpp
 			client->response_integer(-1);
 			return true;
 		}
-		tv -= value->expire_time;
+		tv = value->ttl(tv);
 		client->response_integer(tv.tv_sec * 1000 + tv.tv_usec / 1000);
 		return true;
 	}
