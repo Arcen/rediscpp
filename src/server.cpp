@@ -11,6 +11,16 @@ namespace rediscpp
 		databases.resize(1);
 		build_api_map();
 	}
+	client_type::client_type(std::shared_ptr<socket_type> & client_, const std::string & password_)
+		: client(client_)
+		, argument_count(0)
+		, argument_index(0)
+		, argument_size(argument_is_undefined)
+		, password(password_)
+		, db_index(0)
+		, transaction(false)
+	{
+	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
 	{
 		std::shared_ptr<address_type> addr(new address_type);
@@ -26,16 +36,22 @@ namespace rediscpp
 		}
 		listening->set_callback(server_event);
 		listening->set_extra(this);
-		listening->set_blocking(false);
-		poll = poll_type::create(1000);
+		listening->set_nonblocking();
+		poll = poll_type::create(1024);
 		poll->append(listening);
 		while (true) {
-			poll->wait(-1);
-			if (shutdown) {
-				if (poll->get_count() == 1) {
-					lputs(__FILE__, __LINE__, info_level, "quit server, no client now");
-					break;
+			try {
+				poll->wait(-1);
+				if (shutdown) {
+					if (poll->get_count() == 1) {
+						lputs(__FILE__, __LINE__, info_level, "quit server, no client now");
+						break;
+					}
 				}
+			} catch (std::exception e) {
+				lprintf(__FILE__, __LINE__, info_level, "exception:%s", e.what());
+			} catch (...) {
+				lputs(__FILE__, __LINE__, info_level, "exception");
 			}
 		}
 		return true;
@@ -71,10 +87,10 @@ namespace rediscpp
 				clients[s]->parse(this);
 			}
 			if (s->recv_done()) {
-				auto sp = s->get();
-				if (sp.get()) {
-					//lputs(__FILE__, __LINE__, info_level, "client closed");
-					poll->remove(sp);
+				//sp->shutdown(true, false);
+				if (!s->should_send()) {
+					//lputs(__FILE__, __LINE__, info_level, "recv done, send buff empty, close now");
+					s->close();
 					clients.erase(s);
 					return;
 				}
@@ -85,14 +101,10 @@ namespace rediscpp
 			s->send();
 		}
 		if (events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
-			if (events & EPOLLRDHUP) {//相手側がrecvを行わなくなった
-				lputs(__FILE__, __LINE__, info_level, "client EPOLLRDHUP");
-				s->shutdown(false, true);
-			}
-			if (events & (EPOLLERR|EPOLLHUP)) {//相手にエラーが起こった | ハングアップ
-				//lputs(__FILE__, __LINE__, info_level, "client EPOLLERR");
-				s->shutdown(true, true);
-			}
+			//lputs(__FILE__, __LINE__, info_level, "client closed");
+			s->close();
+			clients.erase(s);
+			return;
 		}
 	}
 	void server_type::on_server_event(socket_type * s, int events)
@@ -106,7 +118,7 @@ namespace rediscpp
 			}
 			//lputs(__FILE__, __LINE__, info_level, "client connected");
 			client->set_callback(client_event);
-			client->set_blocking(false);
+			client->set_nonblocking();
 			client->set_extra(this);
 			client->set_nodelay();
 			poll->append(client);
@@ -138,27 +150,23 @@ namespace rediscpp
 				if (!parse_line(arg_count)) {
 					break;
 				}
-				if (!arg_count.empty()) {
-					if (*arg_count.begin() == '*') {
-						argument_count = atoi(arg_count.c_str() + 1);
-						argument_index = 0;
-						if (argument_count <= 0) {
-							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
-							return false;
-						}
-						arguments.clear();
-						arguments.resize(argument_count);
-					} else {
-						arguments.clear();
-						inline_command_parser(arguments, arg_count);
-						argument_index = argument_count = arguments.size();
-						if (arguments.empty()) {
-							return true;
-						}
+				if (arg_count.empty()) {
+					continue;
+				}
+				if (*arg_count.begin() == '*') {
+					argument_count = atoi(arg_count.c_str() + 1);
+					argument_index = 0;
+					if (argument_count <= 0) {
+						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
+						return false;
 					}
+					arguments.clear();
+					arguments.resize(argument_count);
 				} else {
-					lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
-					return false;
+					inline_command_parser(arguments, arg_count);
+					if (!server->execute(this)) {
+						response_error("ERR unknown");
+					}
 				}
 			} else if (argument_index < argument_count) {
 				if (argument_size == argument_is_undefined) {
@@ -277,22 +285,18 @@ namespace rediscpp
 	bool client_type::parse_line(std::string & line)
 	{
 		auto & buf = client->get_recv();
-		auto it = std::find(buf.begin(), buf.end(), '\n');
-		if (buf.end() != it) {
-			if (it == buf.begin()) {//not found \r
-				lputs(__FILE__, __LINE__, info_level, "not found CR");
-				buf.pop_front();
-			} else {
-				auto prev = it;
-				--prev;
-				if (*prev != '\r') {//only \n
-					++prev;
-				}
-				line.assign(buf.begin(), prev);
-				++it;
-				buf.erase(buf.begin(), it);
-				return true;
-			}
+		if (buf.size() < 2) {
+			return false;
+		}
+		auto begin = buf.begin();
+		auto end = buf.end();
+		--end;
+		auto it = std::find(begin, end, '\r');
+		if (it != end) {
+			line.assign(begin, it);
+			std::advance(it, 2);
+			buf.erase(begin, it);
+			return true;
 		}
 		return false;
 	}
@@ -302,9 +306,12 @@ namespace rediscpp
 		if (buf.size() < size + 2) {
 			return false;
 		}
-		auto end = buf.begin() + size;
-		data.assign(buf.begin(), end);
-		buf.erase(buf.begin(), end + 2);
+		auto begin = buf.begin();
+		auto end = begin;
+		std::advance(end, size);
+		data.assign(begin, end);
+		std::advance(end, 2);
+		buf.erase(begin, end);
 		return true;
 	}
 	bool server_type::execute(client_type * client)

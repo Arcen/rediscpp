@@ -12,5 +12,5 @@ rediscpp_SOURCES = \
     api_strings.cpp \
     main.cpp
 
-rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS -std=c++0x
+rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS -std=c++0x -g
 

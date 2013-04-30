@@ -47,6 +47,8 @@ namespace rediscpp
 		bool finished_to_write;
 		int shutdowning;
 		void * extra;
+		friend class poll_type;
+		epoll_event event;
 		socket_type();
 		socket_type(int s);
 	public:
@@ -54,7 +56,7 @@ namespace rediscpp
 		void close();
 		bool shutdown(bool reading, bool writing);
 		static std::shared_ptr<socket_type> create(const address_type & address, bool stream = true);
-		bool set_blocking(bool blocking = true);
+		bool set_nonblocking(bool nonblocking = true);
 		bool set_reuse(bool reuse = true);
 		bool set_nodelay(bool nodelay = true);
 		bool bind(std::shared_ptr<address_type> address);
@@ -67,8 +69,8 @@ namespace rediscpp
 		std::vector<iovec> send_vectors;
 		std::function<void(socket_type * s,int)> on_event_function;
 	public:
-		bool should_send() const { return ! send_buffers.empty(); }
-		bool should_recv() const { return ! recv_buffer.empty(); }
+		bool should_send() const { return ! send_buffers.empty() && ! is_write_shutdowned(); }
+		bool should_recv() const { return ! recv_buffer.empty() && ! is_read_shutdowned(); }
 		void set_extra(void * extra_) { extra = extra_; }
 		void * get_extra() { return extra; }
 		void set_callback(std::function<void(socket_type * s,int)> function);

@@ -122,16 +122,7 @@ namespace rediscpp
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
 	public:
-		client_type(std::shared_ptr<socket_type> client_, const std::string & password_)
-			: client(client_)
-			, argument_count(0)
-			, argument_index(0)
-			, argument_size(argument_is_undefined)
-			, password(password_)
-			, db_index(0)
-			, transaction(false)
-		{
-		}
+		client_type(std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse(server_type * server);
 		arguments_type & get_arguments() { return arguments; }
 		void response_status(const std::string & state);

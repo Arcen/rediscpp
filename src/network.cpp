@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <signal.h>
 
 namespace rediscpp
 {
@@ -128,6 +129,9 @@ namespace rediscpp
 		, shutdowning(-1)
 		, extra(0)
 	{
+		memset(&event, 0, sizeof(event));
+		event.data.ptr = this;
+		event.events = 0;
 	}
 	socket_type::~socket_type()
 	{
@@ -136,6 +140,11 @@ namespace rediscpp
 	void socket_type::close()
 	{
 		if (0 <= s) {
+			auto poll = this->poll.lock();
+			auto self = this->self.lock();
+			if (poll.get() && self.get()) {
+				poll->remove(self);
+			}
 			::close(s);
 		}
 	}
@@ -150,14 +159,14 @@ namespace rediscpp
 		r->self = r;
 		return r;
 	}
-	bool socket_type::set_blocking(bool blocking)
+	bool socket_type::set_nonblocking(bool nonblocking)
 	{
 		int flags = fcntl(s, F_GETFL, 0);
 		if (flags == -1) {
 			lputs(__FILE__, __LINE__, error_level, "::fcntl(F_GETFL) failed : " + string_error(errno));
 			return false;
 		}
-		if (((flags & O_NONBLOCK) != 0) == blocking) {
+		if (((flags & O_NONBLOCK) != 0) != nonblocking) {
 			flags ^= O_NONBLOCK;
 			int r = fcntl(s, F_SETFL, flags);
 			if (r < 0) {
@@ -240,17 +249,8 @@ namespace rediscpp
 		send_buffers.push_back(std::make_pair<std::vector<uint8_t>, size_t>(std::vector<uint8_t>(), 0));
 		std::vector<uint8_t> & last = send_buffers.back().first;
 		last.assign(reinterpret_cast<const uint8_t*>(buf), reinterpret_cast<const uint8_t*>(buf) + len);
-		if (!send_buffers.empty()) {
+		if (send_buffers.size() == 1) {
 			send();
-			if (should_send()) {
-				auto poll = this->poll.lock();
-				auto self = this->self.lock();
-				if (poll.get() && self.get()) {
-					poll->modify(self);
-				}
-			} else if (finished_to_write) {
-				shutdown(true, true);
-			}
 		}
 		return true;
 	}
@@ -266,6 +266,7 @@ namespace rediscpp
 		if (shut == shutdowning) {
 			return true;
 		}
+		lprintf(__FILE__, __LINE__, error_level, "shutdown %d", shut);
 		shutdowning = shut;
 		int r = ::shutdown(s, shutdowning);
 		if (r < 0) {
@@ -296,26 +297,30 @@ namespace rediscpp
 			return false;
 		}
 		while (0 < r && ! send_buffers.empty()) {
-			std::vector<uint8_t> & buf = send_buffers[0].first;
-			size_t offset = send_buffers[0].second;
-			if (r < buf.size() - offset) {
-				offset += r;
-				break;
-			} else {
-				r -= buf.size() - offset;
-				send_buffers.pop_front();
+			{
+				auto & front_buffer = send_buffers.front();
+				auto & buf = front_buffer.first;
+				size_t offset = front_buffer.second;
+				if (r < buf.size() - offset) {
+					offset += r;
+					r = 0;
+					break;
+				} else {
+					r -= buf.size() - offset;
+				}
 			}
+			send_buffers.pop_front();
 		}
 		if (send_buffers.empty()) {
 			if (finished_to_write) {
-				shutdown(true, true);
-			} else {
-				auto poll = this->poll.lock();
-				auto self = this->self.lock();
-				if (poll.get() && self.get()) {
-					poll->modify(self);
-				}
+				shutdown(false, true);
+				return true;
 			}
+		}
+		auto poll = this->poll.lock();
+		auto self = this->self.lock();
+		if (poll.get() && self.get()) {
+			poll->modify(self);
 		}
 		return true;
 	}
@@ -344,6 +349,7 @@ namespace rediscpp
 	}
 	void socket_type::close_after_send()
 	{
+		lputs(__FILE__, __LINE__, debug_level, "close_after_send");
 		finished_to_write = true;
 		send();
 	}
@@ -357,8 +363,9 @@ namespace rediscpp
 	poll_type::poll_type(size_t capacity)
 		: fd(-1)
 		, count(0)
-		, events(capacity)
+		, events(1024)
 	{
+		signal(SIGPIPE, SIG_IGN);
 		fd = ::epoll_create1(EPOLL_CLOEXEC);
 		if (fd < 0) {
 			throw std::runtime_error(std::string("poll_type::epoll_create failed:") + string_error(errno));
@@ -378,39 +385,54 @@ namespace rediscpp
 	///@param[in] op EPOLL_CTL_ADD, EPOLL_CTL_MOD, EPOLL_CTL_DEL
 	bool poll_type::operation(std::shared_ptr<socket_type> socket, int op)
 	{
-		epoll_event event;
-		memset(&event, 0, sizeof(event));
-		event.data.ptr = socket.get();
-		event.events = EPOLLERR | EPOLLHUP | EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
-		if (socket->should_send()) {
-			lputs(__FILE__, __LINE__, error_level, "epoll ctl out");
-		}
-		int r = epoll_ctl(fd, op, socket->get_handle(), &event);
-		if (r < 0) {
+		if (!socket) {
 			return false;
 		}
+		auto & event = socket->event;
+		int newevents = EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
+		if (newevents == event.events && op == EPOLL_CTL_MOD) {
+			return true;
+		}
+		event.events = newevents;
+		int r = epoll_ctl(fd, op, socket->get_handle(), op == EPOLL_CTL_DEL ? NULL : &event);
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "epoll_ctl failed:" + string_error(errno));
+			return false;
+		}
+		auto mine = self.lock();
 		if (op == EPOLL_CTL_ADD) {
 			++count;
-			socket->set_poll(self.lock());
+			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
+			if (!mine) {
+				lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d but link error", count);
+			}
+			socket->set_poll(mine);
 		} else if (op == EPOLL_CTL_DEL) {
-			socket->set_poll(std::shared_ptr<poll_type>());
 			if (0 < count) {
 				--count;
+				//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
+			} else {
+				lputs(__FILE__, __LINE__, error_level, "epoll_ctl del but incorrect");
 			}
+			socket->set_poll(std::shared_ptr<poll_type>());
+		} else {
+			lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
 		}
 		return true;
 	}
 	bool poll_type::wait(int timeout_milli_sec)
 	{
-		if (!count) {
+		if (count <= 0) {
 			return true;
 		}
 		if (events.size() < count) {
 			events.resize(count + 16);
+			lputs(__FILE__, __LINE__, error_level, "events resize");
 		}
 		int r = epoll_wait(fd,  &events[0], count, timeout_milli_sec);
 		if (r < 0) {
 			if (errno == EINTR) {
+				lputs(__FILE__, __LINE__, error_level, "EINTR");
 				return true;
 			}
 			return false;
@@ -419,10 +441,12 @@ namespace rediscpp
 			r = events.size();
 		}
 		for (auto it = events.begin(), end = events.begin() + r; it != end; ++it) {
-			auto event = *it;
+			auto & event = *it;
 			socket_type * ptr = reinterpret_cast<socket_type *>(event.data.ptr);
 			if (ptr) {
 				ptr->on_event(event.events);
+			} else {
+				lputs(__FILE__, __LINE__, error_level, "event not set");
 			}
 		}
 		return true;

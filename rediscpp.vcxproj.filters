@@ -41,6 +41,21 @@
     <ClCompile Include="src\api_server.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\api_connection.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\timeval.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_keys.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_strings.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_transactions.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\network.h">
@@ -53,6 +68,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\log.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\timeval.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
