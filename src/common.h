@@ -19,9 +19,8 @@ namespace rediscpp
 {
 	inline std::string string_error(int error_number)
 	{
-		std::vector<char> buf(1024, '\0');
-		strerror_r(error_number, & buf[0], buf.size());
-		return std::string(&buf[0]);
+		char buf[1024] = {0};
+		return std::string(strerror_r(error_number, & buf[0], sizeof(buf)));
 	}
 	inline std::string vformat(const char * fmt, va_list args)
 	{

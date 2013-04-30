@@ -45,6 +45,8 @@ namespace rediscpp
 		std::weak_ptr<poll_type> poll;
 		bool finished_to_read;
 		bool finished_to_write;
+		int shutdowning;
+		void * extra;
 		socket_type();
 		socket_type(int s);
 	public:
@@ -60,7 +62,6 @@ namespace rediscpp
 		std::shared_ptr<socket_type> accept();
 		int get_handle() const { return s; }
 	private:
-		void * extra;
 		std::deque<uint8_t> recv_buffer;
 		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
 		std::vector<iovec> send_vectors;
@@ -80,6 +81,8 @@ namespace rediscpp
 		bool recv_done() const { return finished_to_read; }
 		std::shared_ptr<socket_type> get() { return self.lock(); }
 		void close_after_send();
+		bool is_read_shutdowned() const { return shutdowning == SHUT_RD || shutdowning == SHUT_RDWR; }
+		bool is_write_shutdowned() const { return shutdowning == SHUT_WR || shutdowning == SHUT_RDWR; }
 	};
 
 	class poll_type

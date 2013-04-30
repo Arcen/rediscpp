@@ -67,7 +67,7 @@ namespace rediscpp
 		if (events & EPOLLIN) {//recv
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			s->recv();
-			while (s->should_recv()) {
+			if (s->should_recv()) {
 				clients[s]->parse(this);
 			}
 			if (s->recv_done()) {
@@ -84,14 +84,15 @@ namespace rediscpp
 			lputs(__FILE__, __LINE__, info_level, "client EPOLLOUT");
 			s->send();
 		}
-		if (events & EPOLLRDHUP) {//相手側がrecvを行わなくなった
-			lputs(__FILE__, __LINE__, info_level, "client EPOLLRDHUP");
-		}
-		if (events & EPOLLERR) {//相手にエラーが起こった
-			lputs(__FILE__, __LINE__, info_level, "client EPOLLERR");
-		}
-		if (events & EPOLLHUP) {//ハングアップ
-			lputs(__FILE__, __LINE__, info_level, "client EPOLLHUP");
+		if (events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+			if (events & EPOLLRDHUP) {//相手側がrecvを行わなくなった
+				lputs(__FILE__, __LINE__, info_level, "client EPOLLRDHUP");
+				s->shutdown(false, true);
+			}
+			if (events & (EPOLLERR|EPOLLHUP)) {//相手にエラーが起こった | ハングアップ
+				//lputs(__FILE__, __LINE__, info_level, "client EPOLLERR");
+				s->shutdown(true, true);
+			}
 		}
 	}
 	void server_type::on_server_event(socket_type * s, int events)

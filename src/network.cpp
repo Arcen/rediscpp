@@ -125,6 +125,7 @@ namespace rediscpp
 		: s(s_)
 		, finished_to_read(false)
 		, finished_to_write(false)
+		, shutdowning(-1)
 		, extra(0)
 	{
 	}
@@ -255,9 +256,25 @@ namespace rediscpp
 	}
 	bool socket_type::shutdown(bool reading, bool writing)
 	{
-		int r = ::shutdown(s, (reading && writing) ? SHUT_RDWR : (reading ? SHUT_RD : (writing ? SHUT_WR : 0)));
+		if (is_read_shutdowned()) {
+			reading = true;
+		}
+		if (is_write_shutdowned()) {
+			writing = true;
+		}
+		int shut = (reading) ? (writing ? SHUT_RDWR : SHUT_RD) : (writing ? SHUT_WR : -1);
+		if (shut == shutdowning) {
+			return true;
+		}
+		shutdowning = shut;
+		int r = ::shutdown(s, shutdowning);
 		if (r < 0) {
-			lputs(__FILE__, __LINE__, error_level, "::listen failed : " + string_error(errno));
+			switch (errno) {
+			case EBADF:
+			case ENOTCONN:
+				return true;
+			}
+			lprintf(__FILE__, __LINE__, error_level, "::shutdown failed : %s", string_error(errno).c_str());
 			return false;
 		}
 		return true;
