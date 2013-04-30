@@ -83,6 +83,7 @@
     <None Include="src\Makefile.am" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\api_server.cpp" />
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\network.cpp" />

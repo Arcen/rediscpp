@@ -2,39 +2,11 @@
 #define INCLUDE_REDIS_CPP_SERVER_H
 
 #include "network.h"
-#include <list>
+#include "timeval.h"
 
 namespace rediscpp
 {
 	class server_type;
-	class timeval_type : public timeval
-	{
-	public:
-		bool operator==(const timeval_type & rhs) const { return (tv_sec == rhs.tv_sec) && (tv_usec == rhs.tv_usec); }
-		bool operator!=(const timeval_type & rhs) const { return !(*this == rhs); }
-		bool operator<(const timeval_type & rhs) const { return (tv_sec != rhs.tv_sec) ? tv_sec < rhs.tv_sec : tv_usec < rhs.tv_usec; }
-		bool operator>=(const timeval_type & rhs) const { return !(*this < rhs); }
-		bool operator>(const timeval_type & rhs) const { return (rhs < *this); }
-		bool operator<=(const timeval_type & rhs) const { return !(rhs < *this); }
-		timeval_type & operator-=(const timeval_type & rhs)
-		{
-			tv_sec -= rhs.tv_sec;
-			if (rhs.tv_usec <= tv_usec) {
-				tv_usec -= rhs.tv_usec;
-			} else {
-				--tv_sec;
-				tv_usec += 1000000 - rhs.tv_usec;
-			}
-			return *this;
-		}
-		timeval_type operator-(const timeval_type & rhs) const { return timeval_type(*this) -= rhs; }
-		timeval_type();
-		timeval_type(const timeval_type & rhs) { tv_sec = rhs.tv_sec; tv_usec = rhs.tv_usec; }
-		timeval_type(time_t sec, suseconds_t usec) { tv_sec = sec; tv_usec = usec; }
-		timeval_type & operator=(const timeval_type & rhs) { tv_sec = rhs.tv_sec; tv_usec = rhs.tv_usec; return *this; }
-		void update();
-		void add_msec(int64_t msec);
-	};
 	class value_interface
 	{
 	public:
@@ -51,11 +23,13 @@ namespace rediscpp
 		bool is_expiring() const { return expiring; }
 		void expire(const timeval_type & at);
 		void persist();
+		virtual std::string get_type() = 0;
 	};
 	class string_type : public value_interface
 	{
 	public:
 		virtual ~string_type(){}
+		virtual std::string get_type() { return std::string("string"); }
 	};
 	typedef std::pair<std::string,bool> argument_type;
 	class database_type
@@ -194,41 +168,42 @@ namespace rediscpp
 		bool start(const std::string & hostname, const std::string & port);
 		bool execute(client_type * client);
 	private:
-		typedef bool (server_type::*function_type)(client_type * client);
-		std::map<std::string,function_type> function_map;
-		void build_function_map();
+		typedef bool (server_type::*api_function_type)(client_type * client);
+		std::map<std::string,api_function_type> api_map;
+		void build_api_map();
 		//connection api
-		bool function_auth(client_type * client);
-		bool function_ping(client_type * client);
-		bool function_quit(client_type * client);
-		bool function_echo(client_type * client);
-		bool function_select(client_type * client);
+		bool api_auth(client_type * client);
+		bool api_ping(client_type * client);
+		bool api_quit(client_type * client);
+		bool api_echo(client_type * client);
+		bool api_select(client_type * client);
 		//server api
-		bool function_dbsize(client_type * client);
-		bool function_flushall(client_type * client);
-		bool function_flushdb(client_type * client);
-		bool function_shutdown(client_type * client);
-		bool function_time(client_type * client);
+		bool api_dbsize(client_type * client);
+		bool api_flushall(client_type * client);
+		bool api_flushdb(client_type * client);
+		bool api_shutdown(client_type * client);
+		bool api_time(client_type * client);
 		//transaction api
-		bool function_multi(client_type * client);
-		bool function_exec(client_type * client);
-		bool function_discard(client_type * client);
-		bool function_watch(client_type * client);
-		bool function_unwatch(client_type * client);
+		bool api_multi(client_type * client);
+		bool api_exec(client_type * client);
+		bool api_discard(client_type * client);
+		bool api_watch(client_type * client);
+		bool api_unwatch(client_type * client);
 		//keys api
-		bool function_del(client_type * client);
-		bool function_exists(client_type * client);
-		bool function_expire(client_type * client);
-		bool function_expireat(client_type * client);
-		bool function_pexpire(client_type * client);
-		bool function_pexpireat(client_type * client);
-		bool function_persist(client_type * client);
-		bool function_ttl(client_type * client);
-		bool function_pttl(client_type * client);
-		bool function_move(client_type * client);
-		bool function_randomkey(client_type * client);
-		bool function_rename(client_type * client);
-		bool function_renamenx(client_type * client);
+		bool api_del(client_type * client);
+		bool api_exists(client_type * client);
+		bool api_expire(client_type * client);
+		bool api_expireat(client_type * client);
+		bool api_pexpire(client_type * client);
+		bool api_pexpireat(client_type * client);
+		bool api_persist(client_type * client);
+		bool api_ttl(client_type * client);
+		bool api_pttl(client_type * client);
+		bool api_move(client_type * client);
+		bool api_randomkey(client_type * client);
+		bool api_rename(client_type * client);
+		bool api_renamenx(client_type * client);
+		bool api_type(client_type * client);
 	};
 }
 

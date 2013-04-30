@@ -38,6 +38,9 @@
     <ClCompile Include="src\log.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\api_server.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\network.h">
