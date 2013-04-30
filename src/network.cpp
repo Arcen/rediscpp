@@ -176,6 +176,16 @@ namespace rediscpp
 		}
 		return true;
 	}
+	bool socket_type::set_nodelay(bool nodelay)
+	{
+		int option = nodelay ? 1 : 0;
+		int r = setsockopt(s, SOL_TCP, TCP_NODELAY, &option, sizeof(option));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(TCP_NODELAY) failed : " + string_error(errno));
+			return false;
+		}
+		return true;
+	}
 	bool socket_type::bind(std::shared_ptr<address_type> address)
 	{
 		if ((::bind(s, address->get_sockaddr(), address->get_sockaddr_size())) < 0) {

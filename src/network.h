@@ -54,6 +54,7 @@ namespace rediscpp
 		static std::shared_ptr<socket_type> create(const address_type & address, bool stream = true);
 		bool set_blocking(bool blocking = true);
 		bool set_reuse(bool reuse = true);
+		bool set_nodelay(bool nodelay = true);
 		bool bind(std::shared_ptr<address_type> address);
 		bool listen(int queue_count);
 		std::shared_ptr<socket_type> accept();

@@ -8,6 +8,7 @@ namespace rediscpp
 {
 	class server_type;
 	typedef std::pair<std::string,bool> argument_type;
+	typedef std::vector<argument_type> arguments_type;
 	class value_interface
 	{
 	protected:
@@ -109,7 +110,6 @@ namespace rediscpp
 	class client_type
 	{
 		std::shared_ptr<socket_type> client;
-		typedef std::vector<argument_type> arguments_type;
 		arguments_type arguments;
 		int argument_count;
 		int argument_index;

@@ -73,7 +73,7 @@ namespace rediscpp
 			if (s->recv_done()) {
 				auto sp = s->get();
 				if (sp.get()) {
-					lputs(__FILE__, __LINE__, info_level, "client closed");
+					//lputs(__FILE__, __LINE__, info_level, "client closed");
 					poll->remove(sp);
 					clients.erase(s);
 					return;
@@ -103,15 +103,30 @@ namespace rediscpp
 				client->close();
 				return;
 			}
-			lputs(__FILE__, __LINE__, info_level, "client connected");
+			//lputs(__FILE__, __LINE__, info_level, "client connected");
 			client->set_callback(client_event);
 			client->set_blocking(false);
 			client->set_extra(this);
+			client->set_nodelay();
 			poll->append(client);
 			client_type * ct = new client_type(client, password);
 			clients[client.get()].reset(ct);
 		} else {
 			lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
+		}
+	}
+	void inline_command_parser(arguments_type & arguments, const std::string & line)
+	{
+		size_t end = line.size();
+		for (size_t offset = 0; offset < end && offset != line.npos;) {
+			size_t space = line.find(' ', offset);
+			if (space != line.npos) {
+				arguments.push_back(std::make_pair(line.substr(offset, space - offset), true));
+				offset = line.find_first_not_of(' ', space + 1);
+			} else {
+				arguments.push_back(std::make_pair(line.substr(offset), true));
+				break;
+			}
 		}
 	}
 	bool client_type::parse(server_type * server)
@@ -122,15 +137,24 @@ namespace rediscpp
 				if (!parse_line(arg_count)) {
 					break;
 				}
-				if (!arg_count.empty() && *arg_count.begin() == '*') {
-					argument_count = atoi(arg_count.c_str() + 1);
-					argument_index = 0;
-					if (argument_count <= 0) {
-						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
-						return false;
+				if (!arg_count.empty()) {
+					if (*arg_count.begin() == '*') {
+						argument_count = atoi(arg_count.c_str() + 1);
+						argument_index = 0;
+						if (argument_count <= 0) {
+							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
+							return false;
+						}
+						arguments.clear();
+						arguments.resize(argument_count);
+					} else {
+						arguments.clear();
+						inline_command_parser(arguments, arg_count);
+						argument_index = argument_count = arguments.size();
+						if (arguments.empty()) {
+							return true;
+						}
 					}
-					arguments.clear();
-					arguments.resize(argument_count);
 				} else {
 					lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
 					return false;
@@ -304,7 +328,7 @@ namespace rediscpp
 				auto func = it->second;
 				return ((this)->*func)(client);
 			}
-			lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
+			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
 		} catch (std::exception & e) {
 			client->response_error(e.what());
 			return true;
