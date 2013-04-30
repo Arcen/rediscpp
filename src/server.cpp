@@ -2,12 +2,14 @@
 #include "log.h"
 #include <algorithm>
 #include <ctype.h>
+#include <sys/time.h>
 
 namespace rediscpp
 {
 	server_type::server_type()
-		: max_db(1)
+		: shutdown(false)
 	{
+		databases.resize(1);
 		build_function_map();
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
@@ -30,6 +32,12 @@ namespace rediscpp
 		poll->append(listening);
 		while (true) {
 			poll->wait(-1);
+			if (shutdown) {
+				if (poll->get_count() == 1) {
+					lputs(__FILE__, __LINE__, info_level, "quit server, no client now");
+					break;
+				}
+			}
 		}
 		return true;
 	}
@@ -91,6 +99,11 @@ namespace rediscpp
 	{
 		std::shared_ptr<socket_type> client = s->accept();
 		if (client.get()) {
+			if (shutdown) {
+				client->shutdown(true, true);
+				client->close();
+				return;
+			}
 			lputs(__FILE__, __LINE__, info_level, "client connected");
 			client->set_callback(client_event);
 			client->set_blocking(false);
@@ -117,6 +130,7 @@ namespace rediscpp
 						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
 						return false;
 					}
+					arguments.clear();
 					arguments.resize(argument_count);
 				} else {
 					lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
@@ -135,7 +149,6 @@ namespace rediscpp
 							return false;
 						}
 						if (argument_size < 0) {
-							arguments.push_back(std::make_pair<std::string,bool>(std::string(), false));
 							argument_size = argument_is_undefined;
 							++argument_index;
 						}
@@ -148,7 +161,9 @@ namespace rediscpp
 					if (!parse_data(arg_data, argument_size)) {
 						break;
 					}
-					arguments.push_back(std::make_pair<std::string,bool>(arg_data, true));
+					auto & arg = arguments[argument_index];
+					arg.first = arg_data;
+					arg.second = true;
 					argument_size = argument_is_undefined;
 					++argument_index;
 				}
@@ -184,6 +199,11 @@ namespace rediscpp
 		static const std::string & response = "+PONG\r\n";
 		client->send(response.c_str(), response.size());
 	}
+	void client_type::response_queued()
+	{
+		static const std::string & response = "+QUEUED\r\n";
+		client->send(response.c_str(), response.size());
+	}
 	void client_type::response_integer0()
 	{
 		std::string response = ":0\r\n";
@@ -192,6 +212,11 @@ namespace rediscpp
 	void client_type::response_integer1()
 	{
 		std::string response = ":1\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_integer(int64_t value)
+	{
+		std::string response = format(":%d\r\n", value);
 		client->send(response.c_str(), response.size());
 	}
 	void client_type::response_bulk(const std::string & bulk, bool not_null)
@@ -206,6 +231,20 @@ namespace rediscpp
 			static const std::string & response = "$-1\r\n";
 			client->send(response.c_str(), response.size());
 		}
+	}
+	void client_type::response_null_multi_bulk()
+	{
+		static const std::string & response = "*-1\r\n";
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_start_multi_bulk(int count)
+	{
+		std::string response = format("*%d\r\n", count);
+		client->send(response.c_str(), response.size());
+	}
+	void client_type::response_raw(const std::string & raw)
+	{
+		client->send(raw.c_str(), raw.size());
 	}
 	bool client_type::parse_line(std::string & line)
 	{
@@ -253,25 +292,45 @@ namespace rediscpp
 			if (client->require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");
 			}
+			if (client->queuing(command)) {
+				client->response_queued();
+				return true;
+			}
 			auto it = function_map.find(command);
 			if (it != function_map.end()) {
 				auto func = it->second;
 				return ((this)->*func)(client);
 			}
+			lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
 		} catch (std::exception & e) {
 			client->response_error(e.what());
 			return true;
 		} catch (...) {
+			lputs(__FILE__, __LINE__, info_level, "unknown exception");
+			return false;
 		}
 		return false;
 	}
 	void server_type::build_function_map()
 	{
+		//connection API
 		function_map["AUTH"] = &server_type::function_auth;
 		function_map["ECHO"] = &server_type::function_echo;
 		function_map["PING"] = &server_type::function_ping;
 		function_map["QUIT"] = &server_type::function_quit;
 		function_map["SELECT"] = &server_type::function_select;
+		//serve API
+		function_map["DBSIZE"] = &server_type::function_dbsize;
+		function_map["FLUSHALL"] = &server_type::function_flushall;
+		function_map["FLUSHDB"] = &server_type::function_flushdb;
+		function_map["SHUTDOWN"] = &server_type::function_shutdown;
+		function_map["TIME"] = &server_type::function_time;
+		//transaction API
+		function_map["MULTI"] = &server_type::function_multi;
+		function_map["EXEC"] = &server_type::function_exec;
+		function_map["DISCARD"] = &server_type::function_discard;
+		function_map["WATCH"] = &server_type::function_watch;
+		function_map["UNWATCH"] = &server_type::function_unwatch;
 	}
 	bool client_type::require_auth(const std::string & auth)
 	{
@@ -355,11 +414,185 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		int index = atoi(arguments[1].first.c_str());
-		if (index < 0 || max_db <= index) {
+		if (index < 0 || databases.size() <= index) {
 			throw std::runtime_error("ERR index out of range");
 		}
 		client->select(index);
 		client->response_status("OK");
+		return true;
+	}
+	///データベースのキー数取得 
+	///@note Available since 1.0.0.
+	bool server_type::function_dbsize(client_type * client)
+	{
+		auto & db = databases[client->get_db_index()];
+		client->response_integer(db.values.size());
+		return true;
+	}
+	///データベースの全キー消去 
+	///@note Available since 1.0.0.
+	bool server_type::function_flushall(client_type * client)
+	{
+		for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
+			it->values.clear();
+		}
+		client->response_ok();
+		return true;
+	}
+	///選択しているデータベースの全キー消去 
+	///@note Available since 1.0.0.
+	bool server_type::function_flushdb(client_type * client)
+	{
+		auto & db = databases[client->get_db_index()];
+		db.values.clear();
+		client->response_ok();
+		return true;
+	}
+	///サーバのシャットダウン
+	///@note NOSAVE, SAVEオプションは無視する
+	///@note Available since 1.0.0.
+	bool server_type::function_shutdown(client_type * client)
+	{
+		lputs(__FILE__, __LINE__, info_level, "shutdown start");
+		shutdown = true;
+		client->response_ok();
+		return true;
+	}
+	timeval_type::timeval_type()
+	{
+		update();
+	}
+	void timeval_type::update()
+	{
+		int r = gettimeofday(this, NULL);
+		if (r < 0) {
+			throw std::runtime_error("ERR could not get time");
+		}
+	}
+	///サーバの時間
+	///@note Available since 2.6.0.
+	///@note Time complexity: O(1)
+	bool server_type::function_time(client_type * client)
+	{
+		timeval_type tv;
+		client->response_raw(format("*2\r\n:%d\r\n:%d\r\n", tv.tv_sec, tv.tv_usec));
+		return true;
+	}
+	bool client_type::multi()
+	{
+		transaction = true;
+		transaction_arguments.clear();
+		return true;
+	}
+	bool client_type::exec()
+	{
+		transaction = false;
+		return true;
+	}
+	bool client_type::queuing(const std::string & command)
+	{
+		if (!transaction) {
+			return false;
+		}
+		if (command == "EXEC" || command == "DISCARD") {
+			return false;
+		}
+		transaction_arguments.push_back(arguments);
+		return true;
+	}
+	///トランザクションの開始
+	///@note Available since 1.2.0.
+	bool server_type::function_multi(client_type * client)
+	{
+		client->multi();
+		client->response_ok();
+		return true;
+	}
+	bool client_type::unqueue()
+	{
+		if (transaction_arguments.empty()) {
+			return false;
+		}
+		transaction_arguments.front().swap(arguments);
+		transaction_arguments.pop_front();
+		return true;
+	}
+	///トランザクションの実行
+	///@note Available since 1.2.0.
+	bool server_type::function_exec(client_type * client)
+	{
+		//監視していた値が変更されていないか確認する
+		//@todo マルチスレッドにするには確認しつつ、ロックを取得していく
+		auto & watching = client->get_watching();
+		for (auto it = watching.begin(), end = watching.end(); it != end; ++it) {
+			auto & watch = *it;
+			auto key = std::get<0>(watch);
+			auto index = std::get<1>(watch);
+			auto & db = databases[index];
+			auto vit = db.values.find(key);
+			if (vit == db.values.end()) {
+				client->response_null_multi_bulk();
+				client->discard();
+				return true;
+			}
+			auto & value = vit->second;
+			if (!value.get()) {
+				throw std::runtime_error(format("ERR incorrect database structure %s", key.c_str()));
+			}
+			auto watching_time = std::get<2>(watch);
+			if (watching_time < value->last_modified_time) {
+				client->response_null_multi_bulk();
+				client->discard();
+				return true;
+			}
+		}
+		auto count = client->get_transaction_size();
+		client->exec();
+		client->response_start_multi_bulk(count);
+		for (auto i = 0; i < count; ++i) {
+			client->unqueue();
+			if (!execute(client)) {
+				client->response_error("ERR unknown");
+			}
+		}
+		client->discard();
+		return true;
+	}
+	void client_type::discard()
+	{
+		transaction = false;
+		transaction_arguments.clear();
+		unwatch();
+	}
+	///トランザクションの中止
+	///@note Available since 2.0.0.
+	bool server_type::function_discard(client_type * client)
+	{
+		client->discard();
+		client->response_ok();
+		return true;
+	}
+	void client_type::watch(const std::string & key)
+	{
+		watching.insert(std::tuple<std::string,int,timeval_type>(key, db_index, timeval_type()));
+	}
+	///値の変更の監視
+	///@note Available since 2.2.0.
+	bool server_type::function_watch(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		for (int i = 1, n = arguments.size(); i < n; ++i) {
+			client->watch(arguments[i].first);
+		}
+		client->response_ok();
+		return true;
+	}
+	///値の変更の監視の中止
+	///@note Available since 2.2.0.
+	bool server_type::function_unwatch(client_type * client)
+	{
+		client->unwatch();
+		client->response_ok();
 		return true;
 	}
 }

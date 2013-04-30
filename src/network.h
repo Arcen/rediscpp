@@ -99,6 +99,7 @@ namespace rediscpp
 		bool modify(std::shared_ptr<socket_type> socket) { return operation(socket, EPOLL_CTL_MOD); }
 		bool remove(std::shared_ptr<socket_type> socket) { return operation(socket, EPOLL_CTL_DEL); }
 		bool wait(int timeout_milli_sec = 0);
+		int get_count() const { return count; }
 	};
 }
 

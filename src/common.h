@@ -8,6 +8,7 @@
 #include <deque>
 #include <set>
 #include <map>
+#include <tuple>
 #include <memory>
 #include <exception>
 #include <stdexcept>
