@@ -49,12 +49,13 @@ namespace rediscpp
 		//監視していた値が変更されていないか確認する
 		//@todo マルチスレッドにするには確認しつつ、ロックを取得していく
 		auto & watching = client->get_watching();
+		auto current = client->get_time();
 		for (auto it = watching.begin(), end = watching.end(); it != end; ++it) {
 			auto & watch = *it;
 			auto key = std::get<0>(watch);
 			auto index = std::get<1>(watch);
 			auto & db = databases[index];
-			auto value = db.get(key);
+			auto value = db.get(key, current);
 			if (!value.get()) {
 				client->response_null_multi_bulk();
 				client->discard();

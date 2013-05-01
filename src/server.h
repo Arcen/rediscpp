@@ -17,20 +17,21 @@ namespace rediscpp
 		bool expiring;
 		timeval_type expire_time;
 	public:
-		value_interface()
+		value_interface(const timeval_type & current)
 			: null(true)
+			, last_modified_time(current)
 			, expiring(false)
-			, expire_time(last_modified_time)
+			, expire_time(current)
 		{
 		}
 		virtual ~value_interface(){}
-		bool is_expired();
+		bool is_expired(const timeval_type & current);
 		bool is_expiring() const { return expiring; }
 		void expire(const timeval_type & at);
 		void persist();
 		bool is_null() const { return null; }
 		void set_null(bool null_ = true) { null = null_; }
-		timeval_type get_last_modified_time() const { return last_modified_time; }
+		const timeval_type & get_last_modified_time() const { return last_modified_time; }
 		virtual std::string get_type() = 0;
 		timeval_type ttl(timeval_type base) const {
 			base -= expire_time;
@@ -44,7 +45,7 @@ namespace rediscpp
 		bool is_integer;
 		bool is_integer_and_string_mismatch;
 	public:
-		string_type(const argument_type & argument);
+		string_type(const argument_type & argument, const timeval_type & current);
 		virtual ~string_type(){}
 		virtual std::string get_type() { return std::string("string"); }
 		const std::string & get();
@@ -55,34 +56,34 @@ namespace rediscpp
 	public:
 		size_t get_dbsize() const { return values.size(); }
 		void clear() { values.clear(); }
-		std::shared_ptr<value_interface> get(const argument_type & arg)
+		std::shared_ptr<value_interface> get(const argument_type & arg, const timeval_type & current)
 		{
 			if (!arg.second) {
 				return std::shared_ptr<value_interface>();
 			}
-			return get(arg.first);
+			return get(arg.first, current);
 		}
-		std::shared_ptr<value_interface> get(const std::string & key)
+		std::shared_ptr<value_interface> get(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);
 			if (it == values.end()) {
 				return std::shared_ptr<value_interface>();
 			}
 			auto value = it->second;
-			if (value->is_expired()) {
+			if (value->is_expired(current)) {
 				values.erase(it);
 				return std::shared_ptr<value_interface>();
 			}
 			return value;
 		}
-		bool erase(const std::string & key)
+		bool erase(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);
 			if (it == values.end()) {
 				return false;
 			}
 			auto value = it->second;
-			if (value->is_expired()) {
+			if (value->is_expired(current)) {
 				values.erase(it);
 				return false;
 			}
@@ -93,12 +94,12 @@ namespace rediscpp
 		{
 			return values.insert(std::make_pair(key, value)).second;
 		}
-		std::string randomkey()
+		std::string randomkey(const timeval_type & current)
 		{
 			while (!values.empty()) {
 				auto it = values.begin();
 				std::advance(it, rand() % values.size());
-				if (it->second->is_expired()) {
+				if (it->second->is_expired(current)) {
 					values.erase(it);
 					continue;
 				}
@@ -122,6 +123,7 @@ namespace rediscpp
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
 		std::vector<uint8_t> write_cache;
+		timeval_type current_time;
 	public:
 		client_type(std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse(server_type * server);
@@ -155,6 +157,7 @@ namespace rediscpp
 		std::set<std::tuple<std::string,int,timeval_type>> & get_watching() { return watching; }
 		size_t get_transaction_size() { return transaction_arguments.size(); }
 		bool unqueue();
+		timeval_type get_time() const { return current_time; }
 	private:
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);

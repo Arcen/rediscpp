@@ -3,20 +3,21 @@
 
 namespace rediscpp
 {
-	string_type::string_type(const argument_type & value)
-		: int_value(0)
+	string_type::string_type(const argument_type & argument, const timeval_type & current)
+		: value_interface(current)
+		, int_value(0)
 		, is_integer(false)
 		, is_integer_and_string_mismatch(false)
 	{
-		if (!value.second) {
+		if (!argument.second) {
 			return;
 		}
 		set_null(false);
-		int_value = strtoll(value.first.c_str(), NULL, 10);
+		int_value = strtoll(argument.first.c_str(), NULL, 10);
 		string_value = format("%d", int_value);
-		is_integer = (string_value == value.first);
+		is_integer = (string_value == argument.first);
 		if (!is_integer) {
-			string_value = value.first;
+			string_value = argument.first;
 		}
 	}
 	const std::string & string_type::get()
@@ -37,7 +38,8 @@ namespace rediscpp
 		}
 		auto & db = databases[client->get_db_index()];
 		auto & key = arguments[1];
-		auto value = db.get(key);
+		auto current = client->get_time();
+		auto value = db.get(key, current);
 		if (!value.get()) {
 			client->response_null();
 			return true;
@@ -146,21 +148,22 @@ namespace rediscpp
 	bool server_type::api_set_internal(client_type * client, const argument_type & key, const argument_type & value, bool nx, bool xx, int64_t expire)
 	{
 		auto & db = databases[client->get_db_index()];
+		auto current = client->get_time();
 		if (nx) {//‘¶İ‚ğŠm”F‚·‚é
-			if (db.get(key).get()) {
+			if (db.get(key, current).get()) {
 				client->response_null();
 				return true;
 			}
 		} else if (xx) {
-			if (!db.get(key).get()) {
+			if (!db.get(key, current).get()) {
 				client->response_null();
 				return true;
 			}
 		}
-		db.erase(key.first);
-		std::shared_ptr<string_type> str(new string_type(value));
+		db.erase(key.first, current);
+		std::shared_ptr<string_type> str(new string_type(value, current));
 		if (0 <= expire) {
-			timeval_type tv;
+			timeval_type tv = client->get_time();
 			tv.add_msec(expire);
 			str->expire(tv);
 		}
@@ -179,7 +182,8 @@ namespace rediscpp
 		}
 		auto & key = arguments[1];
 		auto & db = databases[client->get_db_index()];
-		auto value = db.get(key);
+		auto current = client->get_time();
+		auto value = db.get(key, current);
 		if (!value.get()) {
 			client->response_integer0();
 			return true;

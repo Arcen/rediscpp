@@ -19,6 +19,7 @@ namespace rediscpp
 		, password(password_)
 		, db_index(0)
 		, transaction(false)
+		, current_time(0, 0)
 	{
 		write_cache.reserve(1500);
 	}
@@ -142,6 +143,7 @@ namespace rediscpp
 	}
 	bool client_type::parse(server_type * server)
 	{
+		bool time_updated = false;
 		while (true) {
 			if (argument_count == 0) {
 				std::string arg_count;
@@ -163,6 +165,10 @@ namespace rediscpp
 					arguments.resize(argument_count);
 				} else {
 					inline_command_parser(arguments, arg_count);
+					if (time_updated) {
+						time_updated = true;
+						current_time.update();
+					}
 					if (!server->execute(this)) {
 						response_error("ERR unknown");
 					}
@@ -201,6 +207,10 @@ namespace rediscpp
 					++argument_index;
 				}
 			} else {
+				if (time_updated) {
+					time_updated = true;
+					current_time.update();
+				}
 				if (!server->execute(this)) {
 					response_error("ERR unknown");
 				}
