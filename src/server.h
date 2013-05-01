@@ -57,14 +57,14 @@ namespace rediscpp
 	public:
 		size_t get_dbsize() const { return values.size(); }
 		void clear() { values.clear(); }
-		std::shared_ptr<value_interface> get(const argument_type & arg, const timeval_type & current)
+		std::shared_ptr<value_interface> get(const argument_type & arg, const timeval_type & current) const
 		{
 			if (!arg.second) {
 				return std::shared_ptr<value_interface>();
 			}
 			return get(arg.first, current);
 		}
-		std::shared_ptr<value_interface> get(const std::string & key, const timeval_type & current)
+		std::shared_ptr<value_interface> get(const std::string & key, const timeval_type & current) const
 		{
 			auto it = values.find(key);
 			if (it == values.end()) {
