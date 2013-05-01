@@ -99,6 +99,7 @@
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\network.h" />
     <ClInclude Include="src\server.h" />
+    <ClInclude Include="src\thread.h" />
     <ClInclude Include="src\timeval.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

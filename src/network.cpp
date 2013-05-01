@@ -5,7 +5,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <fcntl.h>
-#include <pthread.h>
+#include <limits.h>
+#include <algorithm>
 
 namespace rediscpp
 {
@@ -228,7 +229,7 @@ namespace rediscpp
 		}
 		std::shared_ptr<socket_type> child(new socket_type(fd));
 		child->self = child;
-		child->peer = addr;
+		//child->peer = addr;
 		return child;
 	}
 	void socket_type::set_poll(std::shared_ptr<poll_type> poll_)
@@ -253,9 +254,6 @@ namespace rediscpp
 		send_buffers.push_back(std::make_pair<std::vector<uint8_t>, size_t>(std::vector<uint8_t>(), 0));
 		std::vector<uint8_t> & last = send_buffers.back().first;
 		last.assign(reinterpret_cast<const uint8_t*>(buf), reinterpret_cast<const uint8_t*>(buf) + len);
-		if (send_buffers.size() == 1) {
-			send();
-		}
 		return true;
 	}
 	bool socket_type::shutdown(bool reading, bool writing)
@@ -270,7 +268,6 @@ namespace rediscpp
 		if (shut == shutdowning) {
 			return true;
 		}
-		lprintf(__FILE__, __LINE__, error_level, "shutdown %d", shut);
 		shutdowning = shut;
 		int r = ::shutdown(s, shutdowning);
 		if (r < 0) {
@@ -290,39 +287,36 @@ namespace rediscpp
 			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", s);
 			return false;
 		}
-		ssize_t r = 0;
 		if (!send_buffers.empty()) {
-			send_vectors.resize(send_buffers.size());
+			send_vectors.resize(std::min<size_t>(IOV_MAX, send_buffers.size()));
 			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
 				auto & src = send_buffers[i];
 				iovec & iv = send_vectors[i];
 				iv.iov_base = & src.first[0] + src.second;
 				iv.iov_len = src.first.size() - src.second;
 			}
-			r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
-		}
-		if (r < 0) {
-			if (errno == EAGAIN) {
+			ssize_t r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
+			if (r < 0) {
+				if (errno == EAGAIN) {
+					return false;
+				}
+				broken = true;
+				lprintf(__FILE__, __LINE__, error_level, "writev(%d) failed:%s", s, string_error(errno).c_str());
 				return false;
 			}
-			broken = true;
-			lprintf(__FILE__, __LINE__, error_level, "writev(%d) failed:%s", s, string_error(errno).c_str());
-			return false;
-		}
-		while (0 < r && ! send_buffers.empty()) {
-			{
+			while (0 < r && ! send_buffers.empty()) {
 				auto & front_buffer = send_buffers.front();
 				auto & buf = front_buffer.first;
-				size_t offset = front_buffer.second;
+				auto & offset = front_buffer.second;
 				if (r < buf.size() - offset) {
 					offset += r;
 					r = 0;
 					break;
 				} else {
 					r -= buf.size() - offset;
+					send_buffers.pop_front();
 				}
 			}
-			send_buffers.pop_front();
 		}
 		if (send_buffers.empty()) {
 			if (finished_to_write) {
@@ -331,9 +325,8 @@ namespace rediscpp
 			}
 		}
 		auto poll = this->poll.lock();
-		auto self = this->self.lock();
-		if (poll.get() && self.get()) {
-			poll->modify(self);
+		if (poll.get()) {
+			poll->modify(self.lock());
 		}
 		return true;
 	}
@@ -347,16 +340,10 @@ namespace rediscpp
 			ssize_t r = ::read(s, buf, sizeof(buf));
 			if (0 < r) {
 				recv_buffer.insert(recv_buffer.end(), &buf[0], &buf[0] + r);
-				if (r < sizeof(buf)) {
-					break;
-				}
-			}
-			if (r == 0) {
+			} else if (r == 0) {
 				finished_to_read = true;
-				//lputs(__FILE__, __LINE__, debug_level, "client read end");
 				break;
-			}
-			if (r < 0) {
+			} else {
 				break;
 			}
 		}
@@ -364,11 +351,9 @@ namespace rediscpp
 	}
 	void socket_type::close_after_send()
 	{
-		//lputs(__FILE__, __LINE__, debug_level, "close_after_send");
 		finished_to_write = true;
 		send();
 	}
-
 	std::shared_ptr<poll_type> poll_type::create()
 	{
 		std::shared_ptr<poll_type> poll(new poll_type());
@@ -442,11 +427,10 @@ namespace rediscpp
 		if (events.size() < count) {
 			events.resize(count + 16);
 		}
-		//lprintf(__FILE__, __LINE__, error_level, "epoll_wait(%d)", count);
 		int r = epoll_wait(fd,  &events[0], count, timeout_milli_sec);
 		if (r < 0) {
 			if (errno == EINTR) {
-				lputs(__FILE__, __LINE__, error_level, "EINTR");
+				//lputs(__FILE__, __LINE__, error_level, "EINTR");
 				return true;
 			}
 			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());

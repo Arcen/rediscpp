@@ -40,7 +40,7 @@ namespace rediscpp
 	{
 		int s;
 		std::shared_ptr<address_type> local;
-		std::shared_ptr<address_type> peer;
+		//std::shared_ptr<address_type> peer;///<リモートアドレス
 		std::weak_ptr<socket_type> self;
 		std::weak_ptr<poll_type> poll;
 		bool finished_to_read;
