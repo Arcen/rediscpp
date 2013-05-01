@@ -102,7 +102,7 @@ namespace rediscpp
 				client->events = events;
 				mutex_locker locker(thread_pool_mutex);
 				task_queue.push_back(client);
-				thread_pool_cond.broadcast();
+				thread_pool_cond.signal();
 			}
 		} else {
 			auto client = clients[s];
@@ -459,7 +459,8 @@ namespace rediscpp
 	{
 		mutex_locker locker(thread_pool_mutex);
 		if (task_queue.empty()) {
-			thread_pool_cond.timedwait(1000);
+			thread_pool_cond.timedwait(1000000);
+			//thread_pool_cond.wait();
 			if (task_queue.empty()) {
 				return std::shared_ptr<client_type>();
 			}
