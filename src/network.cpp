@@ -328,9 +328,9 @@ namespace rediscpp
 		if (finished_to_read) {
 			return true;
 		}
-		uint8_t buf[1024];
+		uint8_t buf[1500];
 		while (true) {
-			size_t try_to_read_size = 1024;
+			size_t try_to_read_size = sizeof(buf);
 			ssize_t r = ::read(s, buf, try_to_read_size);
 			if (0 < r) {
 				recv_buffer.insert(recv_buffer.end(), &buf[0], &buf[0] + r);
@@ -348,7 +348,7 @@ namespace rediscpp
 	}
 	void socket_type::close_after_send()
 	{
-		lputs(__FILE__, __LINE__, debug_level, "close_after_send");
+		//lputs(__FILE__, __LINE__, debug_level, "close_after_send");
 		finished_to_write = true;
 		send();
 	}
