@@ -93,9 +93,9 @@ namespace rediscpp
 		int count;
 		std::vector<epoll_event> events;///<受信用
 		std::weak_ptr<poll_type> self;
-		poll_type(size_t capacity);
+		poll_type();
 	public:
-		static std::shared_ptr<poll_type> create(size_t capacity);
+		static std::shared_ptr<poll_type> create();
 		~poll_type();
 		void close();
 	private:

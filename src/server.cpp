@@ -39,7 +39,7 @@ namespace rediscpp
 		listening->set_callback(server_event);
 		listening->set_extra(this);
 		listening->set_nonblocking();
-		poll = poll_type::create(1024);
+		poll = poll_type::create();
 		poll->append(listening);
 		while (true) {
 			try {

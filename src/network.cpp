@@ -330,10 +330,12 @@ namespace rediscpp
 		}
 		uint8_t buf[1500];
 		while (true) {
-			size_t try_to_read_size = sizeof(buf);
-			ssize_t r = ::read(s, buf, try_to_read_size);
+			ssize_t r = ::read(s, buf, sizeof(buf));
 			if (0 < r) {
 				recv_buffer.insert(recv_buffer.end(), &buf[0], &buf[0] + r);
+				if (r < sizeof(buf)) {
+					break;
+				}
 			}
 			if (r == 0) {
 				finished_to_read = true;
@@ -353,13 +355,13 @@ namespace rediscpp
 		send();
 	}
 
-	std::shared_ptr<poll_type> poll_type::create(size_t capacity)
+	std::shared_ptr<poll_type> poll_type::create()
 	{
-		std::shared_ptr<poll_type> poll(new poll_type(capacity));
+		std::shared_ptr<poll_type> poll(new poll_type());
 		poll->self = poll;
 		return poll;
 	}
-	poll_type::poll_type(size_t capacity)
+	poll_type::poll_type()
 		: fd(-1)
 		, count(0)
 		, events(1024)
@@ -397,14 +399,13 @@ namespace rediscpp
 			lputs(__FILE__, __LINE__, error_level, "epoll_ctl failed:" + string_error(errno));
 			return false;
 		}
-		auto mine = self.lock();
 		if (op == EPOLL_CTL_ADD) {
 			++count;
 			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
-			if (!mine) {
-				lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d but link error", count);
+			socket->set_poll(self.lock());
+			if (events.size() < count) {
+				events.resize(count + 16);
 			}
-			socket->set_poll(mine);
 		} else if (op == EPOLL_CTL_DEL) {
 			if (0 < count) {
 				--count;
@@ -414,7 +415,7 @@ namespace rediscpp
 			}
 			socket->set_poll(std::shared_ptr<poll_type>());
 		} else {
-			lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
+			//lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
 		}
 		return true;
 	}
@@ -422,10 +423,6 @@ namespace rediscpp
 	{
 		if (count <= 0) {
 			return true;
-		}
-		if (events.size() < count) {
-			events.resize(count + 16);
-			lputs(__FILE__, __LINE__, error_level, "events resize");
 		}
 		int r = epoll_wait(fd,  &events[0], count, timeout_milli_sec);
 		if (r < 0) {
@@ -436,6 +433,7 @@ namespace rediscpp
 			return false;
 		}
 		if (events.size() < r) {
+			lputs(__FILE__, __LINE__, error_level, "epoll_wait return incorrect size");
 			r = events.size();
 		}
 		for (auto it = events.begin(), end = events.begin() + r; it != end; ++it) {
@@ -443,8 +441,6 @@ namespace rediscpp
 			socket_type * ptr = reinterpret_cast<socket_type *>(event.data.ptr);
 			if (ptr) {
 				ptr->on_event(event.events);
-			} else {
-				lputs(__FILE__, __LINE__, error_level, "event not set");
 			}
 		}
 		return true;
