@@ -149,6 +149,12 @@ namespace rediscpp
 			pthread_cond_broadcast(&cond);
 		}
 	};
+	enum rwlock_types
+	{
+		write_lock_type,
+		read_lock_type,
+		no_lock_type,
+	};
 	class rwlock_type
 	{
 		pthread_rwlock_t lock;
@@ -227,6 +233,68 @@ namespace rediscpp
 			}
 		}
 	};
+	class write_locker
+	{
+		rwlock_type & rwlock;
+	public:
+		write_locker(rwlock_type & rwlock_, bool nolock = false)
+			: rwlock(rwlock_)
+		{
+			if (!nolock) {
+				rwlock.wrlock();
+			}
+		}
+		~write_locker()
+		{
+			rwlock.unlock();
+		}
+	};
+	class read_locker
+	{
+		rwlock_type & rwlock;
+	public:
+		read_locker(rwlock_type & rwlock_, bool nolock = false)
+			: rwlock(rwlock_)
+		{
+			if (!nolock) {
+				rwlock.rdlock();
+			}
+		}
+		~read_locker()
+		{
+			rwlock.unlock();
+		}
+	};
+	class rwlock_locker
+	{
+		rwlock_type & rwlock;
+		rwlock_types type;
+	public:
+		rwlock_locker(rwlock_type & rwlock_, rwlock_types type_)
+			: rwlock(rwlock_)
+			, type(type_)
+		{
+			switch (type)
+			{
+			case write_lock_type:
+				rwlock.wrlock();
+				break;
+			case read_lock_type:
+				rwlock.rdlock();
+				break;
+			}
+		}
+		~rwlock_locker()
+		{
+			switch (type)
+			{
+			case write_lock_type:
+			case read_lock_type:
+				rwlock.unlock();
+				break;
+			}
+		}
+	};
 	class thread_type
 	{
 		pthread_t thread;
@@ -302,7 +370,6 @@ namespace rediscpp
 		{
 			try
 			{
-				signal(SIGPIPE, SIG_IGN);
 				thread_type * my = reinterpret_cast<thread_type*>(self);
 				{
 					mutex_locker locker(my->mutex);

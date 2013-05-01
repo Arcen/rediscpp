@@ -187,7 +187,7 @@ namespace rediscpp
 		std::string password;
 		std::vector<database_type> databases;
 		std::vector<std::shared_ptr<client_thread_type>> thread_pool;
-		mutex_type db_mutex;
+		rwlock_type db_lock;
 		mutex_type thread_pool_mutex;
 		condition_type thread_pool_cond;
 		std::list<std::shared_ptr<client_type>> task_queue;
@@ -209,7 +209,22 @@ namespace rediscpp
 		void thread_withdraw();
 	private:
 		typedef bool (server_type::*api_function_type)(client_type * client);
-		std::map<std::string,api_function_type> api_map;
+		struct api_info
+		{
+			api_function_type function;
+			rwlock_types lock_type;
+			api_info()
+				: function(NULL)
+				, lock_type(write_lock_type)
+			{
+			}
+			void set(api_function_type function_, rwlock_types lock_type_)
+			{
+				function = function_;
+				lock_type = lock_type_;
+			}
+		};
+		std::map<std::string,api_info> api_map;
 		void build_api_map();
 		//connection api
 		bool api_auth(client_type * client);

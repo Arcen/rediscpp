@@ -368,12 +368,9 @@ namespace rediscpp
 			}
 			auto it = api_map.find(command);
 			if (it != api_map.end()) {
-				auto func = it->second;
-				if (func == &server_type::api_ping) {
-					return ((this)->*func)(client);
-				}
-				mutex_locker locker(db_mutex);
-				return ((this)->*func)(client);
+				auto info = it->second;
+				rwlock_locker locker(db_lock, info.lock_type);
+				return ((this)->*(info.function))(client);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
 		} catch (std::exception & e) {
@@ -388,43 +385,43 @@ namespace rediscpp
 	void server_type::build_api_map()
 	{
 		//connection API
-		api_map["AUTH"] = &server_type::api_auth;
-		api_map["ECHO"] = &server_type::api_echo;
-		api_map["PING"] = &server_type::api_ping;
-		api_map["QUIT"] = &server_type::api_quit;
-		api_map["SELECT"] = &server_type::api_select;
+		api_map["AUTH"].set(&server_type::api_auth, no_lock_type);
+		api_map["ECHO"].set(&server_type::api_echo, no_lock_type);
+		api_map["PING"].set(&server_type::api_ping, no_lock_type);
+		api_map["QUIT"].set(&server_type::api_quit, no_lock_type);
+		api_map["SELECT"].set(&server_type::api_select, no_lock_type);
 		//serve API
-		api_map["DBSIZE"] = &server_type::api_dbsize;
-		api_map["FLUSHALL"] = &server_type::api_flushall;
-		api_map["FLUSHDB"] = &server_type::api_flushdb;
-		api_map["SHUTDOWN"] = &server_type::api_shutdown;
-		api_map["TIME"] = &server_type::api_time;
+		api_map["DBSIZE"].set(&server_type::api_dbsize, write_lock_type);
+		api_map["FLUSHALL"].set(&server_type::api_flushall, write_lock_type);
+		api_map["FLUSHDB"].set(&server_type::api_flushdb, write_lock_type);
+		api_map["SHUTDOWN"].set(&server_type::api_shutdown, write_lock_type);
+		api_map["TIME"].set(&server_type::api_time, no_lock_type);
 		//transaction API
-		api_map["MULTI"] = &server_type::api_multi;
-		api_map["EXEC"] = &server_type::api_exec;
-		api_map["DISCARD"] = &server_type::api_discard;
-		api_map["WATCH"] = &server_type::api_watch;
-		api_map["UNWATCH"] = &server_type::api_unwatch;
+		api_map["MULTI"].set(&server_type::api_multi, write_lock_type);
+		api_map["EXEC"].set(&server_type::api_exec, write_lock_type);
+		api_map["DISCARD"].set(&server_type::api_discard, write_lock_type);
+		api_map["WATCH"].set(&server_type::api_watch, write_lock_type);
+		api_map["UNWATCH"].set(&server_type::api_unwatch, write_lock_type);
 		//keys API
-		api_map["DEL"] = &server_type::api_del;
-		api_map["EXISTS"] = &server_type::api_exists;
-		api_map["EXPIRE"] = &server_type::api_expire;
-		api_map["EXPIREAT"] = &server_type::api_expireat;
-		api_map["PERSIST"] = &server_type::api_persist;
-		api_map["TTL"] = &server_type::api_ttl;
-		api_map["PTTL"] = &server_type::api_pttl;
-		api_map["MOVE"] = &server_type::api_move;
-		api_map["RANDOMKEY"] = &server_type::api_randomkey;
-		api_map["RENAME"] = &server_type::api_rename;
-		api_map["RENAMENX"] = &server_type::api_renamenx;
-		api_map["TYPE"] = &server_type::api_type;
+		api_map["DEL"].set(&server_type::api_del, write_lock_type);
+		api_map["EXISTS"].set(&server_type::api_exists, write_lock_type);
+		api_map["EXPIRE"].set(&server_type::api_expire, write_lock_type);
+		api_map["EXPIREAT"].set(&server_type::api_expireat, write_lock_type);
+		api_map["PERSIST"].set(&server_type::api_persist, write_lock_type);
+		api_map["TTL"].set(&server_type::api_ttl, write_lock_type);
+		api_map["PTTL"].set(&server_type::api_pttl, write_lock_type);
+		api_map["MOVE"].set(&server_type::api_move, write_lock_type);
+		api_map["RANDOMKEY"].set(&server_type::api_randomkey, write_lock_type);
+		api_map["RENAME"].set(&server_type::api_rename, write_lock_type);
+		api_map["RENAMENX"].set(&server_type::api_renamenx, write_lock_type);
+		api_map["TYPE"].set(&server_type::api_type, write_lock_type);
 		//strings api
-		api_map["GET"] = &server_type::api_get;
-		api_map["SET"] = &server_type::api_set;
-		api_map["SETEX"] = &server_type::api_setex;
-		api_map["SETNX"] = &server_type::api_setnx;
-		api_map["PSETEX"] = &server_type::api_psetex;
-		api_map["STRLEN"] = &server_type::api_strlen;
+		api_map["GET"].set(&server_type::api_get, write_lock_type);
+		api_map["SET"].set(&server_type::api_set, write_lock_type);
+		api_map["SETEX"].set(&server_type::api_setex, write_lock_type);
+		api_map["SETNX"].set(&server_type::api_setnx, write_lock_type);
+		api_map["PSETEX"].set(&server_type::api_psetex, write_lock_type);
+		api_map["STRLEN"].set(&server_type::api_strlen, write_lock_type);
 	}
 	server_type::~server_type()
 	{
