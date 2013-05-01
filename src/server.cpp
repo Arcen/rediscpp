@@ -131,12 +131,15 @@ namespace rediscpp
 	}
 	void server_type::on_server_event(socket_type * s, int events)
 	{
-		std::shared_ptr<socket_type> client = s->accept();
-		if (client.get()) {
+		while (true) {
+			std::shared_ptr<socket_type> client = s->accept();
+			if (!client.get()) {
+				return;
+			}
 			if (shutdown) {
 				client->shutdown(true, true);
 				client->close();
-				return;
+				continue;
 			}
 			//lputs(__FILE__, __LINE__, info_level, "client connected");
 			client->set_callback(client_event);
@@ -146,8 +149,6 @@ namespace rediscpp
 			poll->append(client);
 			client_type * ct = new client_type(*this, client, password);
 			clients[client.get()].reset(ct);
-		} else {
-			//lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
 		}
 	}
 	void inline_command_parser(arguments_type & arguments, const std::string & line)
