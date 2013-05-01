@@ -24,6 +24,14 @@ namespace rediscpp
 		bool operator<=(const timeval_type & rhs) const { return !(rhs < *this); }
 		timeval_type operator+(const timeval_type & rhs) const { return timeval_type(*this) += rhs; }
 		timeval_type operator-(const timeval_type & rhs) const { return timeval_type(*this) -= rhs; }
+
+		timespec get_timespec() const
+		{
+			timespec ts;
+			ts.tv_sec = tv_sec;
+			ts.tv_nsec = tv_usec * 1000;
+			return ts;
+		}
 	};
 }
 

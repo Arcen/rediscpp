@@ -47,6 +47,7 @@ namespace rediscpp
 		bool finished_to_write;
 		int shutdowning;
 		void * extra;
+		bool broken;
 		friend class poll_type;
 		epoll_event event;
 		socket_type();
@@ -63,6 +64,7 @@ namespace rediscpp
 		bool listen(int queue_count);
 		std::shared_ptr<socket_type> accept();
 		int get_handle() const { return s; }
+		bool is_broken() const { return broken; }
 	private:
 		std::deque<uint8_t> recv_buffer;
 		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;

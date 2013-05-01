@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <pthread.h>
+
+extern pthread_t main_thread;
 
 namespace rediscpp
 {
@@ -127,6 +131,7 @@ namespace rediscpp
 		, finished_to_write(false)
 		, shutdowning(-1)
 		, extra(0)
+		, broken(false)
 	{
 		memset(&event, 0, sizeof(event));
 		event.data.ptr = this;
@@ -139,12 +144,20 @@ namespace rediscpp
 	void socket_type::close()
 	{
 		if (0 <= s) {
+			if (main_thread != pthread_self()) {
+				lprintf(__FILE__, __LINE__, error_level, "close(%d) other thread calling", s);
+				return;
+			}
 			auto poll = this->poll.lock();
 			auto self = this->self.lock();
 			if (poll.get() && self.get()) {
 				poll->remove(self);
+				//lprintf(__FILE__, __LINE__, error_level, "::socket close(%d) and removed", s);
+			} else {
+				//lprintf(__FILE__, __LINE__, error_level, "::socket close(%d)", s);
 			}
 			::close(s);
+			s = -1;
 		}
 	}
 	std::shared_ptr<socket_type> socket_type::create(const address_type & address, bool stream)
@@ -281,8 +294,55 @@ namespace rediscpp
 	}
 	bool socket_type::send()
 	{
+		//if (main_thread == pthread_self()) {
+		//	lprintf(__FILE__, __LINE__, error_level, "send(%d) main thread calling", s);
+		//	return false;
+		//}
+
+		if (s < 0) {
+			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", s);
+			return false;
+		}
 		ssize_t r = 0;
 		if (!send_buffers.empty()) {
+#if true
+			pollfd pf;
+			pf.fd = s;
+			pf.events = POLLOUT;
+			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
+				auto & src = send_buffers[i];
+				size_t size = src.first.size() - src.second;
+				pf.revents = 0;
+				int pr = ::poll(&pf, 1, 0);
+				if (pr < 0) {
+					lprintf(__FILE__, __LINE__, error_level, "::poll failed : %s", string_error(errno).c_str());
+				}
+				if (pf.revents & (POLLERR|POLLHUP|POLLNVAL)) {
+					broken = true;
+					//lprintf(__FILE__, __LINE__, error_level, "poll(%d) closed: err:%d, hup:%d, inval:%d", s, pf.revents & POLLERR, pf.revents & POLLHUP, pf.revents & POLLNVAL);
+					send_buffers.clear();
+					return false;
+				}
+				if (!(pf.revents & POLLOUT)) {
+					break;
+				}
+				ssize_t sent_size = ::send(s, & src.first[0] + src.second, size, MSG_NOSIGNAL);
+				if (sent_size != size) {
+					if (0 < sent_size) {
+						r += sent_size;
+					} else if (sent_size < 0) {
+						if (errno != EAGAIN) {
+							broken = true;
+							lprintf(__FILE__, __LINE__, error_level, "send(%d) failed:%s", s, string_error(errno).c_str());
+							return false;
+						}
+					}
+					break;
+				} else {
+					r += sent_size;
+				}
+			}
+#else
 			send_vectors.resize(send_buffers.size());
 			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
 				auto & src = send_buffers[i];
@@ -291,8 +351,14 @@ namespace rediscpp
 				iv.iov_len = src.first.size() - src.second;
 			}
 			r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
+#endif
 		}
 		if (r < 0) {
+			if (errno == EAGAIN) {
+				return false;
+			}
+			broken = true;
+			lprintf(__FILE__, __LINE__, error_level, "writev(%d) failed:%s", s, string_error(errno).c_str());
 			return false;
 		}
 		while (0 < r && ! send_buffers.empty()) {
@@ -325,6 +391,10 @@ namespace rediscpp
 	}
 	bool socket_type::recv()
 	{
+		//if (main_thread == pthread_self()) {
+		//	lprintf(__FILE__, __LINE__, error_level, "recv(%d) main thread calling", s);
+		//	return false;
+		//}
 		if (finished_to_read) {
 			return true;
 		}
@@ -385,37 +455,42 @@ namespace rediscpp
 	///@param[in] op EPOLL_CTL_ADD, EPOLL_CTL_MOD, EPOLL_CTL_DEL
 	bool poll_type::operation(std::shared_ptr<socket_type> socket, int op)
 	{
+		if (main_thread != pthread_self()) {
+			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl other thread calling");
+			return false;
+		}
 		if (!socket) {
+			lprintf(__FILE__, __LINE__, error_level, "empty socket");
 			return false;
 		}
 		auto & event = socket->event;
 		int newevents = EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
 		if (newevents == event.events && op == EPOLL_CTL_MOD) {
+			//lprintf(__FILE__, __LINE__, error_level, "no need modify");
 			return true;
 		}
 		event.events = newevents;
 		int r = epoll_ctl(fd, op, socket->get_handle(), op == EPOLL_CTL_DEL ? NULL : &event);
+
+		//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d,%s)", socket->get_handle(), op == EPOLL_CTL_ADD ? "add" : (op == EPOLL_CTL_MOD ? "mod" : (op == EPOLL_CTL_DEL ? "del" : "unknown")));
 		if (r < 0) {
-			lputs(__FILE__, __LINE__, error_level, "epoll_ctl failed:" + string_error(errno));
+			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d) failed:%s", socket->get_handle(), string_error(errno).c_str());
 			return false;
 		}
 		if (op == EPOLL_CTL_ADD) {
 			++count;
 			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
 			socket->set_poll(self.lock());
-			if (events.size() < count) {
-				events.resize(count + 16);
-			}
 		} else if (op == EPOLL_CTL_DEL) {
 			if (0 < count) {
 				--count;
 				//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
 			} else {
-				lputs(__FILE__, __LINE__, error_level, "epoll_ctl del but incorrect");
+				//lputs(__FILE__, __LINE__, error_level, "epoll_ctl del but incorrect");
 			}
 			socket->set_poll(std::shared_ptr<poll_type>());
 		} else {
-			//lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
+			lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
 		}
 		return true;
 	}
@@ -424,12 +499,17 @@ namespace rediscpp
 		if (count <= 0) {
 			return true;
 		}
+		if (events.size() < count) {
+			events.resize(count + 16);
+		}
+		//lprintf(__FILE__, __LINE__, error_level, "epoll_wait(%d)", count);
 		int r = epoll_wait(fd,  &events[0], count, timeout_milli_sec);
 		if (r < 0) {
 			if (errno == EINTR) {
 				lputs(__FILE__, __LINE__, error_level, "EINTR");
 				return true;
 			}
+			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());
 			return false;
 		}
 		if (events.size() < r) {

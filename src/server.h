@@ -3,6 +3,7 @@
 
 #include "network.h"
 #include "timeval.h"
+#include "thread.h"
 
 namespace rediscpp
 {
@@ -110,6 +111,8 @@ namespace rediscpp
 	};
 	class client_type
 	{
+		friend class server_type;
+		server_type & server;
 		std::shared_ptr<socket_type> client;
 		arguments_type arguments;
 		int argument_count;
@@ -124,9 +127,11 @@ namespace rediscpp
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
 		std::vector<uint8_t> write_cache;
 		timeval_type current_time;
+		int events;//for thread
+		bool finished;
 	public:
-		client_type(std::shared_ptr<socket_type> & client_, const std::string & password_);
-		bool parse(server_type * server);
+		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
+		bool parse();
 		arguments_type & get_arguments() { return arguments; }
 		void response_status(const std::string & state);
 		void response_error(const std::string & state);
@@ -158,9 +163,20 @@ namespace rediscpp
 		size_t get_transaction_size() { return transaction_arguments.size(); }
 		bool unqueue();
 		timeval_type get_time() const { return current_time; }
+		void process();
+		void finish() { finished = true; }
+		bool is_finished() const { return finished; }
 	private:
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);
+	};
+	class client_thread_type : public thread_type
+	{
+		server_type & server;
+	public:
+		client_thread_type(server_type & server_);
+		virtual void run();
+		void signal();
 	};
 	class server_type
 	{
@@ -170,6 +186,12 @@ namespace rediscpp
 		std::map<std::string,std::string> store;
 		std::string password;
 		std::vector<database_type> databases;
+		std::vector<std::shared_ptr<client_thread_type>> thread_pool;
+		mutex_type db_mutex;
+		mutex_type thread_pool_mutex;
+		condition_type thread_pool_cond;
+		std::list<std::shared_ptr<client_type>> task_queue;
+		std::list<std::shared_ptr<client_type>> return_queue;
 		bool shutdown;
 		static void client_event(socket_type * s, int events);
 		static void server_event(socket_type * s, int events);
@@ -177,8 +199,14 @@ namespace rediscpp
 		void on_server_event(socket_type * s, int events);
 	public:
 		server_type();
-		bool start(const std::string & hostname, const std::string & port);
+		~server_type();
+		void startup_threads();
+		void shutdown_threads();
+		bool start(const std::string & hostname, const std::string & port, int threads = 4);
 		bool execute(client_type * client);
+		std::shared_ptr<client_type> thread_wait();
+		void thread_return(std::shared_ptr<client_type> client);
+		void thread_withdraw();
 	private:
 		typedef bool (server_type::*api_function_type)(client_type * client);
 		std::map<std::string,api_function_type> api_map;
