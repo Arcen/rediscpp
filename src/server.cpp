@@ -20,6 +20,7 @@ namespace rediscpp
 		, db_index(0)
 		, transaction(false)
 	{
+		write_cache.reserve(1500);
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port)
 	{
@@ -155,6 +156,7 @@ namespace rediscpp
 					argument_index = 0;
 					if (argument_count <= 0) {
 						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
+						flush();
 						return false;
 					}
 					arguments.clear();
@@ -175,6 +177,7 @@ namespace rediscpp
 						argument_size = atoi(arg_size.c_str() + 1);
 						if (argument_size < -1) {
 							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
+							flush();
 							return false;
 						}
 						if (argument_size < 0) {
@@ -183,6 +186,7 @@ namespace rediscpp
 						}
 					} else {
 						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
+						flush();
 						return false;
 					}
 				} else {
@@ -206,78 +210,81 @@ namespace rediscpp
 				argument_size = argument_is_undefined;
 			}
 		}
+		flush();
 		return true;
 	}
 	void client_type::response_status(const std::string & state)
 	{
-		const std::string & response = "+" + state + "\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("+" + state + "\r\n");
 	}
 	void client_type::response_error(const std::string & state)
 	{
-		const std::string & response = "-" + state + "\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("-" + state + "\r\n");
 	}
 	void client_type::response_ok()
 	{
-		static const std::string & response = "+OK\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("+OK\r\n");
 	}
 	void client_type::response_pong()
 	{
-		static const std::string & response = "+PONG\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("+PONG\r\n");
 	}
 	void client_type::response_queued()
 	{
-		static const std::string & response = "+QUEUED\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("+QUEUED\r\n");
 	}
 	void client_type::response_integer0()
 	{
-		std::string response = ":0\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw(":0\r\n");
 	}
 	void client_type::response_integer1()
 	{
-		std::string response = ":1\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw(":1\r\n");
 	}
 	void client_type::response_integer(int64_t value)
 	{
-		std::string response = format(":%d\r\n", value);
-		client->send(response.c_str(), response.size());
+		response_raw(format(":%d\r\n", value));
 	}
 	void client_type::response_bulk(const std::string & bulk, bool not_null)
 	{
 		if (not_null) {
-			std::string response = format("$%d\r\n", bulk.size());
-			client->send(response.c_str(), response.size());
-			client->send(bulk.c_str(), bulk.size());
-			response = "\r\n";
-			client->send(response.c_str(), response.size());
+			response_raw(format("$%d\r\n", bulk.size()));
+			response_raw(bulk);
+			response_raw("\r\n");
 		} else {
 			response_null();
 		}
 	}
 	void client_type::response_null()
 	{
-		static const std::string & response = "$-1\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("$-1\r\n");
 	}
 	void client_type::response_null_multi_bulk()
 	{
-		static const std::string & response = "*-1\r\n";
-		client->send(response.c_str(), response.size());
+		response_raw("*-1\r\n");
 	}
 	void client_type::response_start_multi_bulk(int count)
 	{
-		std::string response = format("*%d\r\n", count);
-		client->send(response.c_str(), response.size());
+		response_raw(format("*%d\r\n", count));
 	}
 	void client_type::response_raw(const std::string & raw)
 	{
-		client->send(raw.c_str(), raw.size());
+		if (raw.size() <= write_cache.capacity() - write_cache.size()) {
+			write_cache.insert(write_cache.end(), raw.begin(), raw.end());
+		} else if (raw.size() <= write_cache.capacity()) {
+			flush();
+			write_cache.insert(write_cache.end(), raw.begin(), raw.end());
+		} else {
+			flush();
+			client->send(raw.c_str(), raw.size());
+		}
+	}
+	void client_type::flush()
+	{
+		if (!write_cache.empty()) {
+			client->send(&write_cache[0], write_cache.size());
+			write_cache.clear();
+		}
 	}
 	bool client_type::parse_line(std::string & line)
 	{

@@ -121,6 +121,7 @@ namespace rediscpp
 		bool transaction;
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
+		std::vector<uint8_t> write_cache;
 	public:
 		client_type(std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse(server_type * server);
@@ -136,8 +137,9 @@ namespace rediscpp
 		void response_bulk(const std::string & bulk, bool not_null = true);
 		void response_null();
 		void response_null_multi_bulk();
-		void response_raw(const std::string & raw);
 		void response_start_multi_bulk(int count);
+		void response_raw(const std::string & raw);
+		void flush();
 		void close_after_send() { client->close_after_send(); }
 		bool require_auth(const std::string & auth);
 		bool auth(const std::string & password_);
