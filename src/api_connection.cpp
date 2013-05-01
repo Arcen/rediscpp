@@ -49,7 +49,7 @@ namespace rediscpp
 	bool server_type::api_echo(client_type * client)
 	{
 		auto & arguments = client->get_arguments();
-		if (arguments.size() != 2) {
+		if (arguments.size() < 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto & message = arguments[1];
@@ -60,10 +60,6 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_ping(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 1) {
-			throw std::runtime_error("ERR syntax error");
-		}
 		client->response_pong();
 		return true;
 	}

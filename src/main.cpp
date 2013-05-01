@@ -1,13 +1,11 @@
 #include "server.h"
 #include <signal.h>
 
-pthread_t main_thread = pthread_self();
-
 int main(int argc, char *argv[])
 {
 	signal(SIGPIPE, SIG_IGN);
 	rediscpp::server_type server;
-	int thread = 0;
+	int thread = 3;
 	for (int i = 1; i < argc; ++i) {
 		if (*argv[i] == '-') {
 			switch (argv[i][1]) {

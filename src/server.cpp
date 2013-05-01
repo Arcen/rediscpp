@@ -39,7 +39,7 @@ namespace rediscpp
 		if (!listening->bind(addr)) {
 			return false;
 		}
-		if (!listening->listen(100)) {
+		if (!listening->listen(512)) {
 			return false;
 		}
 		listening->set_callback(server_event);
@@ -122,8 +122,10 @@ namespace rediscpp
 				finish();
 				return;
 			}
-		}
-		if (events & EPOLLOUT) {//send
+			if (client->should_send()) {
+				client->send();
+			}
+		} else if (events & EPOLLOUT) {//send
 			client->send();
 		}
 	}
@@ -145,7 +147,7 @@ namespace rediscpp
 			client_type * ct = new client_type(*this, client, password);
 			clients[client.get()].reset(ct);
 		} else {
-			lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
+			//lprintf(__FILE__, __LINE__, info_level, "other events %x", events);
 		}
 	}
 	void inline_command_parser(arguments_type & arguments, const std::string & line)
@@ -190,7 +192,7 @@ namespace rediscpp
 						time_updated = true;
 						current_time.update();
 					}
-					if (!server.execute(this)) {
+					if (!execute()) {
 						response_error("ERR unknown");
 					}
 				}
@@ -232,7 +234,7 @@ namespace rediscpp
 					time_updated = true;
 					current_time.update();
 				}
-				if (!server.execute(this)) {
+				if (!execute()) {
 					response_error("ERR unknown");
 				}
 				arguments.clear();
@@ -349,32 +351,31 @@ namespace rediscpp
 		buf.erase(begin, end);
 		return true;
 	}
-	bool server_type::execute(client_type * client)
+	bool client_type::execute()
 	{
 		try
 		{
-			auto & arguments = client->get_arguments();
 			if (arguments.empty()) {
 				throw std::runtime_error("ERR syntax error");
 			}
 			auto command = arguments.front().first;
 			std::transform(command.begin(), command.end(), command.begin(), toupper);
-			if (client->require_auth(command)) {
+			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");
 			}
-			if (client->queuing(command)) {
-				client->response_queued();
+			if (queuing(command)) {
+				response_queued();
 				return true;
 			}
-			auto it = api_map.find(command);
-			if (it != api_map.end()) {
+			auto it = server.api_map.find(command);
+			if (it != server.api_map.end()) {
 				auto info = it->second;
-				rwlock_locker locker(db_lock, info.lock_type);
-				return ((this)->*(info.function))(client);
+				rwlock_locker locker(server.db_lock, info.lock_type);
+				return (server.*(info.function))(this);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
 		} catch (std::exception & e) {
-			client->response_error(e.what());
+			response_error(e.what());
 			return true;
 		} catch (...) {
 			lputs(__FILE__, __LINE__, info_level, "unknown exception");
@@ -416,7 +417,7 @@ namespace rediscpp
 		api_map["RENAMENX"].set(&server_type::api_renamenx, write_lock_type);
 		api_map["TYPE"].set(&server_type::api_type, write_lock_type);
 		//strings api
-		api_map["GET"].set(&server_type::api_get, write_lock_type);
+		api_map["GET"].set(&server_type::api_get, read_lock_type);
 		api_map["SET"].set(&server_type::api_set, write_lock_type);
 		api_map["SETEX"].set(&server_type::api_setex, write_lock_type);
 		api_map["SETNX"].set(&server_type::api_setnx, write_lock_type);

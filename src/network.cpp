@@ -5,10 +5,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <pthread.h>
-
-extern pthread_t main_thread;
 
 namespace rediscpp
 {
@@ -144,17 +141,10 @@ namespace rediscpp
 	void socket_type::close()
 	{
 		if (0 <= s) {
-			if (main_thread != pthread_self()) {
-				lprintf(__FILE__, __LINE__, error_level, "close(%d) other thread calling", s);
-				return;
-			}
 			auto poll = this->poll.lock();
-			auto self = this->self.lock();
-			if (poll.get() && self.get()) {
+			if (poll.get()) {
+				auto self = this->self.lock();
 				poll->remove(self);
-				//lprintf(__FILE__, __LINE__, error_level, "::socket close(%d) and removed", s);
-			} else {
-				//lprintf(__FILE__, __LINE__, error_level, "::socket close(%d)", s);
 			}
 			::close(s);
 			s = -1;
@@ -210,7 +200,8 @@ namespace rediscpp
 	}
 	bool socket_type::bind(std::shared_ptr<address_type> address)
 	{
-		if ((::bind(s, address->get_sockaddr(), address->get_sockaddr_size())) < 0) {
+		int r = ::bind(s, address->get_sockaddr(), address->get_sockaddr_size());
+		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::bind failed : " + string_error(errno));
 			return false;
 		}
@@ -219,7 +210,8 @@ namespace rediscpp
 	}
 	bool socket_type::listen(int queue_count)
 	{
-		if ((::listen(s, queue_count)) < 0) {
+		int r = ::listen(s, queue_count);
+		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::listen failed : " + string_error(errno));
 			return false;
 		}
@@ -294,55 +286,12 @@ namespace rediscpp
 	}
 	bool socket_type::send()
 	{
-		//if (main_thread == pthread_self()) {
-		//	lprintf(__FILE__, __LINE__, error_level, "send(%d) main thread calling", s);
-		//	return false;
-		//}
-
 		if (s < 0) {
 			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", s);
 			return false;
 		}
 		ssize_t r = 0;
 		if (!send_buffers.empty()) {
-#if true
-			pollfd pf;
-			pf.fd = s;
-			pf.events = POLLOUT;
-			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
-				auto & src = send_buffers[i];
-				size_t size = src.first.size() - src.second;
-				pf.revents = 0;
-				int pr = ::poll(&pf, 1, 0);
-				if (pr < 0) {
-					lprintf(__FILE__, __LINE__, error_level, "::poll failed : %s", string_error(errno).c_str());
-				}
-				if (pf.revents & (POLLERR|POLLHUP|POLLNVAL)) {
-					broken = true;
-					//lprintf(__FILE__, __LINE__, error_level, "poll(%d) closed: err:%d, hup:%d, inval:%d", s, pf.revents & POLLERR, pf.revents & POLLHUP, pf.revents & POLLNVAL);
-					send_buffers.clear();
-					return false;
-				}
-				if (!(pf.revents & POLLOUT)) {
-					break;
-				}
-				ssize_t sent_size = ::send(s, & src.first[0] + src.second, size, MSG_NOSIGNAL);
-				if (sent_size != size) {
-					if (0 < sent_size) {
-						r += sent_size;
-					} else if (sent_size < 0) {
-						if (errno != EAGAIN) {
-							broken = true;
-							lprintf(__FILE__, __LINE__, error_level, "send(%d) failed:%s", s, string_error(errno).c_str());
-							return false;
-						}
-					}
-					break;
-				} else {
-					r += sent_size;
-				}
-			}
-#else
 			send_vectors.resize(send_buffers.size());
 			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
 				auto & src = send_buffers[i];
@@ -351,7 +300,6 @@ namespace rediscpp
 				iv.iov_len = src.first.size() - src.second;
 			}
 			r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
-#endif
 		}
 		if (r < 0) {
 			if (errno == EAGAIN) {
@@ -391,10 +339,6 @@ namespace rediscpp
 	}
 	bool socket_type::recv()
 	{
-		//if (main_thread == pthread_self()) {
-		//	lprintf(__FILE__, __LINE__, error_level, "recv(%d) main thread calling", s);
-		//	return false;
-		//}
 		if (finished_to_read) {
 			return true;
 		}
@@ -455,10 +399,6 @@ namespace rediscpp
 	///@param[in] op EPOLL_CTL_ADD, EPOLL_CTL_MOD, EPOLL_CTL_DEL
 	bool poll_type::operation(std::shared_ptr<socket_type> socket, int op)
 	{
-		if (main_thread != pthread_self()) {
-			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl other thread calling");
-			return false;
-		}
 		if (!socket) {
 			lprintf(__FILE__, __LINE__, error_level, "empty socket");
 			return false;

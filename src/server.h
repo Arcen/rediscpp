@@ -72,7 +72,7 @@ namespace rediscpp
 			}
 			auto value = it->second;
 			if (value->is_expired(current)) {
-				values.erase(it);
+				//values.erase(it);
 				return std::shared_ptr<value_interface>();
 			}
 			return value;
@@ -169,6 +169,7 @@ namespace rediscpp
 	private:
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);
+		bool execute();
 	};
 	class client_thread_type : public thread_type
 	{
@@ -180,6 +181,7 @@ namespace rediscpp
 	};
 	class server_type
 	{
+		friend class client_type;
 		std::shared_ptr<poll_type> poll;
 		std::map<socket_type*,std::shared_ptr<client_type>> clients;
 		std::shared_ptr<socket_type> listening;
@@ -203,7 +205,6 @@ namespace rediscpp
 		void startup_threads();
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads = 4);
-		bool execute(client_type * client);
 		std::shared_ptr<client_type> thread_wait();
 		void thread_return(std::shared_ptr<client_type> client);
 		void thread_withdraw();

@@ -73,7 +73,7 @@ namespace rediscpp
 		client->response_start_multi_bulk(count);
 		for (auto i = 0; i < count; ++i) {
 			client->unqueue();
-			if (!execute(client)) {
+			if (!client->execute()) {
 				client->response_error("ERR unknown");
 			}
 		}
