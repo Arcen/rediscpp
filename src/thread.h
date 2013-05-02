@@ -164,6 +164,7 @@ namespace rediscpp
 		{
 			mutex_locker locker(mutex);
 			queue.push(value);
+			cond.broadcast();
 		}
 		bool empty()
 		{
@@ -178,7 +179,7 @@ namespace rediscpp
 					if (usec < 0) {
 						cond.wait();
 						continue;
-					} else if (usec < 0 ) {
+					} else if (0 < usec) {
 						cond.timedwait(usec);
 						usec = 0;
 						continue;
@@ -192,7 +193,6 @@ namespace rediscpp
 			}
 		}
 	};
-
 	enum rwlock_types
 	{
 		write_lock_type,
@@ -275,38 +275,6 @@ namespace rediscpp
 			default:
 				throw std::runtime_error("pthread_rwlock_unlock:" + string_error(err));
 			}
-		}
-	};
-	class write_locker
-	{
-		rwlock_type & rwlock;
-	public:
-		write_locker(rwlock_type & rwlock_, bool nolock = false)
-			: rwlock(rwlock_)
-		{
-			if (!nolock) {
-				rwlock.wrlock();
-			}
-		}
-		~write_locker()
-		{
-			rwlock.unlock();
-		}
-	};
-	class read_locker
-	{
-		rwlock_type & rwlock;
-	public:
-		read_locker(rwlock_type & rwlock_, bool nolock = false)
-			: rwlock(rwlock_)
-		{
-			if (!nolock) {
-				rwlock.rdlock();
-			}
-		}
-		~read_locker()
-		{
-			rwlock.unlock();
 		}
 	};
 	class rwlock_locker

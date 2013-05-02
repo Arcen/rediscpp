@@ -1,10 +1,7 @@
 #include "server.h"
-#include <signal.h>
 
 int main(int argc, char *argv[])
 {
-	signal(SIGPIPE, SIG_IGN);
-	rediscpp::server_type server;
 	int thread = 3;
 	for (int i = 1; i < argc; ++i) {
 		if (*argv[i] == '-') {
@@ -18,6 +15,7 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
+	rediscpp::server_type server;
 	if (!server.start("127.0.0.1", "6379", thread)) {
 		return -1;
 	}

@@ -2,12 +2,14 @@
 #include "log.h"
 #include <algorithm>
 #include <ctype.h>
+#include <signal.h>
 
 namespace rediscpp
 {
 	server_type::server_type()
 		: shutdown(false)
 	{
+		signal(SIGPIPE, SIG_IGN);
 		databases.resize(1);
 		build_api_map();
 	}
