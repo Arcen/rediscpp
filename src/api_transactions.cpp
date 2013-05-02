@@ -54,7 +54,7 @@ namespace rediscpp
 			auto & watch = *it;
 			auto key = std::get<0>(watch);
 			auto index = std::get<1>(watch);
-			auto & db = databases[index];
+			auto & db = *databases[index];
 			auto value = db.get(key, current);
 			if (!value.get()) {
 				client->response_null_multi_bulk();

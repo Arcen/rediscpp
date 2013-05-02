@@ -11,6 +11,9 @@ namespace rediscpp
 	{
 		signal(SIGPIPE, SIG_IGN);
 		databases.resize(1);
+		for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
+			it->reset(new database_type());
+		}
 		build_api_map();
 	}
 	client_type::client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_)
@@ -57,10 +60,19 @@ namespace rediscpp
 		while (true) {
 			try {
 				process();
+				//メインスレッドだけの機能
 				if (shutdown) {
 					if (poll->get_count() == base_poll_count) {
 						lputs(__FILE__, __LINE__, info_level, "quit server, no client now");
 						break;
+					}
+				}
+				//ガベージコレクト
+				{
+					rwlock_locker locker(db_lock, write_lock_type);
+					timeval_type tv;
+					for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
+						(*it)->flush_expiring_key(tv);
 					}
 				}
 			} catch (std::exception e) {

@@ -59,7 +59,11 @@ namespace rediscpp
 	class database_type
 	{
 		std::map<std::string,std::shared_ptr<value_interface>> values;
+		mutex_type expire_mutex;
+		std::multimap<timeval_type,std::string> expires;
+		database_type(const database_type &);
 	public:
+		database_type(){};
 		size_t get_dbsize() const { return values.size(); }
 		void clear() { values.clear(); }
 		std::shared_ptr<value_interface> get(const argument_type & arg, const timeval_type & current) const
@@ -116,6 +120,26 @@ namespace rediscpp
 				return it->first;
 			}
 			return std::string();
+		}
+		void regist_expiring_key(timeval_type tv, const std::string & key)
+		{
+			mutex_locker locker(expire_mutex);
+			expires.insert(std::make_pair(tv, key));
+		}
+		void flush_expiring_key(const timeval_type & current)
+		{
+			mutex_locker locker(expire_mutex);
+			if (expires.empty()) {
+				return;
+			}
+			auto it = expires.begin(), end = expires.end();
+			for (; it != end && it->first < current; ++it) {
+				auto vit = values.find(it->second);
+				if (vit != values.end() && vit->second->is_expired(current)) {
+					values.erase(vit);
+				}
+			}
+			expires.erase(expires.begin(), it);
 		}
 	};
 	class client_type
@@ -213,7 +237,7 @@ namespace rediscpp
 		std::shared_ptr<socket_type> listening;
 		std::map<std::string,std::string> store;
 		std::string password;
-		std::vector<database_type> databases;
+		std::vector<std::shared_ptr<database_type>> databases;
 		std::vector<std::shared_ptr<worker_type>> thread_pool;
 		rwlock_type db_lock;
 		sync_queue<std::shared_ptr<job_type>> jobs;

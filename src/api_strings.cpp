@@ -22,7 +22,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -134,7 +134,7 @@ namespace rediscpp
 	}
 	bool server_type::api_set_internal(client_type * client, const argument_type & key, const argument_type & value, bool nx, bool xx, int64_t expire)
 	{
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto current = client->get_time();
 		if (nx) {//存在を確認する
 			if (db.get(key, current).get()) {
@@ -152,6 +152,7 @@ namespace rediscpp
 			timeval_type tv = current;
 			tv.add_msec(expire);
 			str->expire(tv);
+			db.regist_expiring_key(tv, key.first);
 		}
 		db.replace(key.first, str);
 		client->response_ok();
@@ -167,7 +168,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto & key = arguments[1];
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
 		if (!value.get()) {

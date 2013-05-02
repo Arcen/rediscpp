@@ -9,7 +9,7 @@ namespace rediscpp
 	{
 		auto & arguments = client->get_arguments();
 		int64_t removed = 0;
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto current = client->get_time();
 		for (int i = 1, n = arguments.size(); i < n; ++i) {
 			auto & key = arguments[i];
@@ -31,7 +31,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		if (key.second == false) {
@@ -75,7 +75,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -101,6 +101,7 @@ namespace rediscpp
 			}
 		}
 		value->expire(tv);
+		db.regist_expiring_key(tv, key.first);
 		client->response_integer1();
 		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
 		return true;
@@ -113,7 +114,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -143,7 +144,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -171,7 +172,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -184,7 +185,7 @@ namespace rediscpp
 			client->response_integer0();
 			return 0;
 		}
-		auto & dst_db = databases[dst_index];
+		auto & dst_db = *databases[dst_index];
 		if (dst_db.get(key, current).get()) {
 			client->response_integer0();
 			return true;
@@ -201,7 +202,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_randomkey(client_type * client)
 	{
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto current = client->get_time();
 		auto value = db.randomkey(current);
 		if (value.empty()) {
@@ -219,7 +220,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -243,7 +244,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
@@ -272,7 +273,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & db = databases[client->get_db_index()];
+		auto & db = *databases[client->get_db_index()];
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db.get(key, current);
