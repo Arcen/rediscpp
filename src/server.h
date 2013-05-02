@@ -167,6 +167,7 @@ namespace rediscpp
 		void set(std::shared_ptr<client_type> self_) { self = self_; }
 		std::shared_ptr<client_type> get() { return self.lock(); }
 	private:
+		void inline_command_parser(const std::string & line);
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);
 		bool execute();

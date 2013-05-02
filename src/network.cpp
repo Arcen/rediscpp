@@ -315,7 +315,6 @@ namespace rediscpp
 				return true;
 			}
 		}
-		mod();
 		return true;
 	}
 	bool socket_type::recv()
@@ -355,7 +354,9 @@ namespace rediscpp
 			auto poll = this->poll.lock();
 			if (poll.get()) {
 				auto self = this->self.lock();
-				poll->remove(self);
+				if (self) {
+					poll->remove(self);
+				}
 			}
 			::close(fd);
 			fd = -1;
@@ -406,12 +407,6 @@ namespace rediscpp
 		}
 		auto & events = pollable->events;
 		auto newevents = pollable->get_events();
-		/*
-		if (newevents == events.events && op == EPOLL_CTL_MOD && !(newevents & EPOLLONESHOT)) {
-			lprintf(__FILE__, __LINE__, error_level, "no need modify");
-			return true;
-		}
-		*/
 		events.events = newevents;
 		int r = epoll_ctl(fd, op, pollable->get_handle(), op == EPOLL_CTL_DEL ? NULL : &events);
 		//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d,%s)", pollable->get_handle(), op == EPOLL_CTL_ADD ? "add" : (op == EPOLL_CTL_MOD ? "mod" : (op == EPOLL_CTL_DEL ? "del" : "unknown")));
@@ -419,18 +414,22 @@ namespace rediscpp
 			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d) failed:%s", pollable->get_handle(), string_error(errno).c_str());
 			return false;
 		}
-		if (op == EPOLL_CTL_ADD) {
+		switch (op) {
+		case EPOLL_CTL_ADD:
 			++count;
 			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
 			pollable->set_poll(self.lock());
-		} else if (op == EPOLL_CTL_DEL) {
+			break;
+		case EPOLL_CTL_DEL:
 			if (0 < count) {
 				--count;
 			}
 			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
 			pollable->set_poll(std::shared_ptr<poll_type>());
-		} else {
+			break;
+		//case EPOLL_CTL_MOD:
 			//lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
+			//break;
 		}
 		return true;
 	}

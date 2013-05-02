@@ -215,7 +215,7 @@ namespace rediscpp
 			client->send();
 		}
 	}
-	void inline_command_parser(arguments_type & arguments, const std::string & line)
+	void client_type::inline_command_parser(const std::string & line)
 	{
 		size_t end = line.size();
 		for (size_t offset = 0; offset < end && offset != line.npos;) {
@@ -252,7 +252,7 @@ namespace rediscpp
 					arguments.clear();
 					arguments.resize(argument_count);
 				} else {
-					inline_command_parser(arguments, arg_count);
+					inline_command_parser(arg_count);
 					if (time_updated) {
 						time_updated = true;
 						current_time.update();
@@ -517,16 +517,11 @@ namespace rediscpp
 		}
 		thread_pool.clear();
 	}
-	worker_type::worker_type(server_type & server_)
-		: server(server_)
-	{
-	}
 	void server_type::process()
 	{
 		try
 		{
 			std::vector<epoll_event> events(1);
-			//poll->wait(1000);
 			poll->wait(events, 1000);
 			for (auto it = events.begin(), end = events.end(); it != end; ++it) {
 				auto pollable = reinterpret_cast<pollable_type*>(it->data.ptr);
@@ -539,6 +534,10 @@ namespace rediscpp
 		} catch (...) {
 			lprintf(__FILE__, __LINE__, info_level, "exception");
 		}
+	}
+	worker_type::worker_type(server_type & server_)
+		: server(server_)
+	{
 	}
 	void worker_type::run()
 	{
