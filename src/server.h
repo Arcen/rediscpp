@@ -141,6 +141,22 @@ namespace rediscpp
 			}
 			expires.erase(expires.begin(), it);
 		}
+		void match(std::unordered_set<std::string> & result, const std::string & pattern)
+		{
+			if (pattern == "*") {
+				for (auto it = values.begin(), end = values.end(); it != end; ++it) {
+					auto & key = it->first;
+					result.insert(key);
+				}
+			} else {
+				for (auto it = values.begin(), end = values.end(); it != end; ++it) {
+					auto & key = it->first;
+					if (pattern_match(pattern, key)) {
+						result.insert(key);
+					}
+				}
+			}
+		}
 	};
 	class client_type
 	{
@@ -294,6 +310,7 @@ namespace rediscpp
 		bool api_watch(client_type * client);
 		bool api_unwatch(client_type * client);
 		//keys api
+		bool api_keys(client_type * client);
 		bool api_del(client_type * client);
 		bool api_exists(client_type * client);
 		bool api_expire(client_type * client);

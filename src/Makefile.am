@@ -5,6 +5,7 @@ rediscpp_SOURCES = \
     server.cpp \
     log.cpp \
     timeval.cpp \
+    common.cpp \
     api_connection.cpp \
     api_server.cpp \
     api_transactions.cpp \

@@ -3,6 +3,25 @@
 
 namespace rediscpp
 {
+	
+	///キーをすべて列挙する
+	///@note Available since 1.0.0.
+	bool server_type::api_keys(client_type * client)
+	{
+		auto & arguments = client->get_arguments();
+		if (arguments.size() != 2) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		auto & db = *databases[client->get_db_index()];
+		auto & pattern = arguments[1];
+		std::unordered_set<std::string> keys;
+		db.match(keys, pattern.first);
+		client->response_start_multi_bulk(keys.size());
+		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
+			client->response_bulk(*it);
+		}
+		return true;
+	}
 	///キーを削除する
 	///@note Available since 1.0.0.
 	bool server_type::api_del(client_type * client)

@@ -43,6 +43,7 @@ namespace rediscpp
 		va_end( args );
 		return ret;
 	}
+	bool pattern_match(const std::string & pattern, const std::string & target, bool nocase = false);
 };
 
 #endif

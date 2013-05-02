@@ -483,6 +483,7 @@ namespace rediscpp
 		api_map["WATCH"].set(&server_type::api_watch, write_lock_type);
 		api_map["UNWATCH"].set(&server_type::api_unwatch, write_lock_type);
 		//keys API
+		api_map["KEYS"].set(&server_type::api_keys, read_lock_type);
 		api_map["DEL"].set(&server_type::api_del, write_lock_type);
 		api_map["EXISTS"].set(&server_type::api_exists, write_lock_type);
 		api_map["EXPIRE"].set(&server_type::api_expire, write_lock_type);
