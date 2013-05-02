@@ -88,6 +88,7 @@
     <ClCompile Include="src\api_server.cpp" />
     <ClCompile Include="src\api_strings.cpp" />
     <ClCompile Include="src\api_transactions.cpp" />
+    <ClCompile Include="src\common.cpp" />
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\network.cpp" />

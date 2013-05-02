@@ -7,16 +7,17 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_dbsize(client_type * client)
 	{
-		auto & db = *databases[client->get_db_index()];
-		client->response_integer(db.get_dbsize());
+		auto db = readable_db(client->get_db_index());
+		client->response_integer(db->get_dbsize());
 		return true;
 	}
 	///データベースの全キー消去 
 	///@note Available since 1.0.0.
 	bool server_type::api_flushall(client_type * client)
 	{
-		for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
-			(*it)->clear();
+		for (int i = 0, n = databases.size(); i < n; ++i) {
+			auto db = writable_db(i);
+			db->clear();
 		}
 		client->response_ok();
 		return true;
@@ -25,8 +26,8 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_flushdb(client_type * client)
 	{
-		auto & db = *databases[client->get_db_index()];
-		db.clear();
+		auto db = writable_db(client->get_db_index());
+		db->clear();
 		client->response_ok();
 		return true;
 	}

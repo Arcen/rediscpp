@@ -56,11 +56,33 @@ namespace rediscpp
 		virtual std::string get_type() { return std::string("string"); }
 		const std::string & get();
 	};
+	class database_type;
+	class database_write_locker
+	{
+		database_type * database;
+		std::shared_ptr<rwlock_locker> locker;
+	public:
+		database_write_locker(database_type * database_);
+		database_type * get() { return database; }
+		database_type * operator->() { return database; }
+	};
+	class database_read_locker
+	{
+		database_type * database;
+		std::shared_ptr<rwlock_locker> locker;
+	public:
+		database_read_locker(database_type * database_);
+		const database_type * get() { return database; }
+		const database_type * operator->() { return database; }
+	};
 	class database_type
 	{
+		friend class database_write_locker;
+		friend class database_read_locker;
 		std::unordered_map<std::string,std::shared_ptr<value_interface>> values;
-		mutex_type expire_mutex;
-		std::multimap<timeval_type,std::string> expires;
+		mutable mutex_type expire_mutex;
+		mutable std::multimap<timeval_type,std::string> expires;
+		rwlock_type rwlock;
 		database_type(const database_type &);
 	public:
 		database_type(){};
@@ -121,7 +143,7 @@ namespace rediscpp
 			}
 			return std::string();
 		}
-		void regist_expiring_key(timeval_type tv, const std::string & key)
+		void regist_expiring_key(timeval_type tv, const std::string & key) const
 		{
 			mutex_locker locker(expire_mutex);
 			expires.insert(std::make_pair(tv, key));
@@ -141,7 +163,7 @@ namespace rediscpp
 			}
 			expires.erase(expires.begin(), it);
 		}
-		void match(std::unordered_set<std::string> & result, const std::string & pattern)
+		void match(std::unordered_set<std::string> & result, const std::string & pattern) const
 		{
 			if (pattern == "*") {
 				for (auto it = values.begin(), end = values.end(); it != end; ++it) {
@@ -255,7 +277,6 @@ namespace rediscpp
 		std::string password;
 		std::vector<std::shared_ptr<database_type>> databases;
 		std::vector<std::shared_ptr<worker_type>> thread_pool;
-		rwlock_type db_lock;
 		sync_queue<std::shared_ptr<job_type>> jobs;
 		bool shutdown;
 		static void client_callback(pollable_type * p, int events);
@@ -271,6 +292,14 @@ namespace rediscpp
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
+		database_write_locker writable_db(int index)
+		{
+			return database_write_locker(databases.at(index).get());
+		}
+		database_read_locker readable_db(int index)
+		{
+			return database_read_locker(databases.at(index).get());
+		}
 	private:
 		void remove_client(std::shared_ptr<client_type> client);
 		typedef bool (server_type::*api_function_type)(client_type * client);

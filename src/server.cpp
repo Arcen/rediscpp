@@ -69,10 +69,10 @@ namespace rediscpp
 				}
 				//ガベージコレクト
 				{
-					rwlock_locker locker(db_lock, write_lock_type);
 					timeval_type tv;
-					for (auto it = databases.begin(), end = databases.end(); it != end; ++it) {
-						(*it)->flush_expiring_key(tv);
+					for (int i = 0, n = databases.size(); i < n; ++i) {
+						auto db = writable_db(i);
+						db->flush_expiring_key(tv);
 					}
 				}
 			} catch (std::exception e) {
@@ -449,7 +449,6 @@ namespace rediscpp
 			auto it = server.api_map.find(command);
 			if (it != server.api_map.end()) {
 				auto info = it->second;
-				rwlock_locker locker(server.db_lock, info.lock_type);
 				return (server.*(info.function))(this);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
@@ -557,5 +556,15 @@ namespace rediscpp
 	void worker_type::run()
 	{
 		server.process();
+	}
+	database_write_locker::database_write_locker(database_type * database_)
+		: database(database_)
+		, locker(new rwlock_locker(database_->rwlock, write_lock_type))
+	{
+	}
+	database_read_locker::database_read_locker(database_type * database_)
+		: database(database_)
+		, locker(new rwlock_locker(database_->rwlock, read_lock_type))
+	{
 	}
 }
