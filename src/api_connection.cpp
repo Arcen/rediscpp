@@ -37,7 +37,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto & password = arguments[1];
-		if (!password.second || !client->auth(password.first)) {
+		if (!client->auth(password)) {
 			throw std::runtime_error("ERR not match");
 		}
 		client->response_ok();
@@ -53,7 +53,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto & message = arguments[1];
-		client->response_bulk(message.first, message.second);
+		client->response_bulk(message);
 		return true;
 	}
 	///Ping
@@ -80,7 +80,7 @@ namespace rediscpp
 		if (arguments.size() != 1) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		int index = atoi(arguments[1].first.c_str());
+		int index = atoi(arguments[1].c_str());
 		if (index < 0 || databases.size() <= index) {
 			throw std::runtime_error("ERR index out of range");
 		}

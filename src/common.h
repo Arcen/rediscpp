@@ -43,6 +43,10 @@ namespace rediscpp
 		va_end( args );
 		return ret;
 	}
+	inline int64_t atoi64(const std::string & str)
+	{
+		return strtoll(str.c_str(), NULL, 10);
+	}
 	bool pattern_match(const std::string & pattern, const std::string & target, bool nocase = false);
 };
 

@@ -8,8 +8,7 @@
 namespace rediscpp
 {
 	class server_type;
-	typedef std::pair<std::string,bool> argument_type;
-	typedef std::vector<argument_type> arguments_type;
+	typedef std::vector<std::string> arguments_type;
 	class value_interface
 	{
 	protected:
@@ -46,15 +45,34 @@ namespace rediscpp
 			}
 			return timeval_type(0,0);
 		}
+		void update(const timeval_type & current) { last_modified_time = current; }
 	};
 	class string_type : public value_interface
 	{
 		std::string string_value;
 	public:
-		string_type(const argument_type & argument, const timeval_type & current);
+		string_type(const std::string & string_value_, const timeval_type & current);
 		virtual ~string_type(){}
 		virtual std::string get_type() { return std::string("string"); }
 		const std::string & get();
+		int64_t append(const std::string & str)
+		{
+			string_value += str;
+			return string_value.size();
+		}
+		int64_t setrange(int64_t offset, const std::string & str)
+		{
+			if (string_value.size() < offset) {
+				string_value.resize(offset);
+				string_value.append(str);
+			} else if (string_value.size() < offset + str.size()) {
+				string_value.resize(offset + str.size());
+				std::copy(str.begin(), str.end(), string_value.begin() + offset);
+			} else {
+				std::copy(str.begin(), str.end(), string_value.begin() + offset);
+			}
+			return string_value.size();
+		}
 	};
 	class database_type;
 	class database_write_locker
@@ -88,13 +106,6 @@ namespace rediscpp
 		database_type(){};
 		size_t get_dbsize() const { return values.size(); }
 		void clear() { values.clear(); }
-		std::shared_ptr<value_interface> get(const argument_type & arg, const timeval_type & current) const
-		{
-			if (!arg.second) {
-				return std::shared_ptr<value_interface>();
-			}
-			return get(arg.first, current);
-		}
 		std::shared_ptr<value_interface> get(const std::string & key, const timeval_type & current) const
 		{
 			auto it = values.find(key);
@@ -122,9 +133,18 @@ namespace rediscpp
 			values.erase(it);
 			return true;
 		}
-		bool insert(const std::string & key, std::shared_ptr<value_interface> value)
+		bool insert(const std::string & key, std::shared_ptr<value_interface> value, const timeval_type & current)
 		{
-			return values.insert(std::make_pair(key, value)).second;
+			auto it = values.find(key);
+			if (it == values.end()) {
+				return values.insert(std::make_pair(key, value)).second;
+			} else {
+				if (it->second->is_expired(current)) {
+					it->second = value;
+					return true;
+				}
+				return false;
+			}
 		}
 		void replace(const std::string & key, std::shared_ptr<value_interface> value)
 		{
@@ -306,16 +326,13 @@ namespace rediscpp
 		struct api_info
 		{
 			api_function_type function;
-			rwlock_types lock_type;
 			api_info()
 				: function(NULL)
-				, lock_type(write_lock_type)
 			{
 			}
-			void set(api_function_type function_, rwlock_types lock_type_)
+			void set(api_function_type function_)
 			{
 				function = function_;
-				lock_type = lock_type_;
 			}
 		};
 		std::map<std::string,api_info> api_map;
@@ -358,12 +375,28 @@ namespace rediscpp
 		bool api_type(client_type * client);
 		//strings api
 		bool api_get(client_type * client);
-		bool api_set_internal(client_type * client, const argument_type & key, const argument_type & value, bool nx, bool xx, int64_t expire);
+		bool api_set_internal(client_type * client, const std::string & key, const std::string & value, bool nx, bool xx, int64_t expire);
 		bool api_set(client_type * client);
 		bool api_setnx(client_type * client);
 		bool api_setex(client_type * client);
 		bool api_psetex(client_type * client);
 		bool api_strlen(client_type * client);
+		bool api_append(client_type * client);
+		bool api_getrange(client_type * client);
+		bool api_setrange(client_type * client);
+		bool api_getset(client_type * client);
+		bool api_mget(client_type * client);
+		bool api_mset(client_type * client);
+		bool api_msetnx(client_type * client);
+		bool api_decr(client_type * client);
+		bool api_decrby(client_type * client);
+		bool api_incr(client_type * client);
+		bool api_incrby(client_type * client);
+		bool api_incrbyfloat(client_type * client);
+		bool api_bitcount(client_type * client);
+		bool api_bitop(client_type * client);
+		bool api_getbit(client_type * client);
+		bool api_setbit(client_type * client);
 	};
 }
 

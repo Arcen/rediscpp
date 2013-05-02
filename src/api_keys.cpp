@@ -15,7 +15,7 @@ namespace rediscpp
 		auto db = readable_db(client->get_db_index());
 		auto & pattern = arguments[1];
 		std::unordered_set<std::string> keys;
-		db->match(keys, pattern.first);
+		db->match(keys, pattern);
 		client->response_start_multi_bulk(keys.size());
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
 			client->response_bulk(*it);
@@ -32,10 +32,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		for (int i = 1, n = arguments.size(); i < n; ++i) {
 			auto & key = arguments[i];
-			if (key.second == false) {
-				continue;
-			}
-			if (db->erase(key.first, current)) {
+			if (db->erase(key, current)) {
 				++removed;
 			}
 		}
@@ -53,11 +50,7 @@ namespace rediscpp
 		auto db = readable_db(client->get_db_index());
 		auto & key = arguments[1];
 		auto current = client->get_time();
-		if (key.second == false) {
-			client->response_integer0();
-			return true;
-		}
-		if (db->get(key.first, current).get()) {
+		if (db->get(key, current).get()) {
 			client->response_integer1();
 		} else {
 			client->response_integer0();
@@ -103,7 +96,7 @@ namespace rediscpp
 			return true;
 		}
 		timeval_type tv(0,0);
-		int64_t time = strtoll(arguments[2].first.c_str(), NULL, 10);
+		int64_t time = atoi64(arguments[2]);
 		if (ts) {
 			tv = client->get_time();
 			if (sec) {
@@ -120,7 +113,7 @@ namespace rediscpp
 			}
 		}
 		value->expire(tv);
-		db->regist_expiring_key(tv, key.first);
+		db->regist_expiring_key(tv, key);
 		client->response_integer1();
 		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
 		return true;
@@ -191,7 +184,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		int dst_index = atoi(arguments[2].first.c_str());
+		int dst_index = atoi(arguments[2].c_str());
 		if (dst_index == client->get_db_index()) {
 			client->response_integer0();
 			return 0;
@@ -213,11 +206,11 @@ namespace rediscpp
 				client->response_integer0();
 				return true;
 			}
-			if (!dst_db->insert(key.first, value)) {
+			if (!dst_db->insert(key, value, current)) {
 				client->response_integer0();
 				return false;
 			}
-			src_db->erase(key.first, current);
+			src_db->erase(key, current);
 		} else {
 			auto & src_db = db2;
 			auto & dst_db = db1;
@@ -230,11 +223,11 @@ namespace rediscpp
 				client->response_integer0();
 				return true;
 			}
-			if (!dst_db->insert(key.first, value)) {
+			if (!dst_db->insert(key, value, current)) {
 				client->response_integer0();
 				return false;
 			}
-			src_db->erase(key.first, current);
+			src_db->erase(key, current);
 		}
 		client->response_integer1();
 		return true;
@@ -268,12 +261,12 @@ namespace rediscpp
 		if (!value.get()) {
 			throw std::runtime_error("ERR not exist");
 		}
-		auto newkey = arguments[2].first;
-		if (key.first == newkey) {
+		auto newkey = arguments[2];
+		if (key == newkey) {
 			throw std::runtime_error("ERR same key");
 		}
-		db->erase(key.first, current);
-		db->insert(newkey, value);
+		db->erase(key, current);
+		db->replace(newkey, value);
 		client->response_ok();
 		return true;
 	}
@@ -293,7 +286,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR not exist");
 		}
 		auto newkey = arguments[2];
-		if (key.first == newkey.first) {
+		if (key == newkey) {
 			throw std::runtime_error("ERR same key");
 		}
 		auto dst_value = db->get(newkey, current);
@@ -301,8 +294,10 @@ namespace rediscpp
 			client->response_integer0();
 			return true;
 		}
-		db->erase(key.first, current);
-		db->insert(newkey.first, value);
+		if (!db->insert(newkey, value, current)) {
+			throw std::runtime_error("ERR internal error");
+		}
+		db->erase(key, current);
 		client->response_integer1();
 		return true;
 	}

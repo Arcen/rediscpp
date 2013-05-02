@@ -104,7 +104,7 @@ namespace rediscpp
 	{
 		auto & arguments = client->get_arguments();
 		for (int i = 1, n = arguments.size(); i < n; ++i) {
-			client->watch(arguments[i].first);
+			client->watch(arguments[i]);
 		}
 		client->response_ok();
 		return true;
