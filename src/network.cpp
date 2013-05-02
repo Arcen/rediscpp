@@ -206,7 +206,18 @@ namespace rediscpp
 		std::shared_ptr<address_type> addr(new address_type());
 		addr->set_family(local->get_family());
 		socklen_t addr_len = static_cast<socklen_t>(addr->get_sockaddr_size());
-		int cs = ::accept(fd, addr->get_sockaddr(), &addr_len);
+		int interupt_count = 0;
+		int cs = 0;
+		while (true) {
+			cs = ::accept(fd, addr->get_sockaddr(), &addr_len);
+			if (cs < 0 && errno == EINTR) {
+				if (interupt_count < 3) {
+					++interupt_count;
+					continue;
+				}
+			}
+			break;
+		}
 		if (cs < 0) {
 			return std::shared_ptr<socket_type>();
 		}
@@ -264,7 +275,18 @@ namespace rediscpp
 				iv.iov_base = & src.first[0] + src.second;
 				iv.iov_len = src.first.size() - src.second;
 			}
-			ssize_t r = ::writev(fd, &send_vectors[0], static_cast<int>(send_vectors.size()));
+			ssize_t r;
+			int interupt_count = 0;
+			while (true) {
+				r = ::writev(fd, &send_vectors[0], static_cast<int>(send_vectors.size()));
+				if (r < 0 && errno == EINTR) {
+					if (interupt_count < 3) {
+						++interupt_count;
+						continue;
+					}
+				}
+				break;
+			}
 			if (r < 0) {
 				if (errno == EAGAIN) {
 					return false;
@@ -302,6 +324,7 @@ namespace rediscpp
 			return true;
 		}
 		uint8_t buf[1500];
+		int interupt_count = 0;
 		while (true) {
 			ssize_t r = ::read(fd, buf, sizeof(buf));
 			if (0 < r) {
@@ -310,6 +333,12 @@ namespace rediscpp
 				finished_to_read = true;
 				break;
 			} else {
+				if (errno == EINTR) {
+					if (interupt_count < 3) {
+						++interupt_count;
+						continue;
+					}
+				}
 				break;
 			}
 		}
@@ -336,9 +365,10 @@ namespace rediscpp
 	{
 		auto poll_ = poll.lock();
 		if (poll_.get()) {
-			poll_->modify(self.lock());
-		} else {
-			lprintf(__FILE__, __LINE__, error_level, "not added, could not mod");
+			auto self_ = self.lock();
+			if (self_) {
+				poll_->modify(self_);
+			}
 		}
 	}
 	std::shared_ptr<poll_type> poll_type::create()
@@ -392,13 +422,13 @@ namespace rediscpp
 		}
 		if (op == EPOLL_CTL_ADD) {
 			++count;
-			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
+			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
 			pollable->set_poll(self.lock());
 		} else if (op == EPOLL_CTL_DEL) {
 			if (0 < count) {
 				--count;
 			}
-			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
+			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
 			pollable->set_poll(std::shared_ptr<poll_type>());
 		} else {
 			//lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
@@ -448,11 +478,20 @@ namespace rediscpp
 			return result;
 		}
 		epoll_event events[16];
-		//mutex_locker locker(mutex);
-		int r = epoll_wait(fd,  &events[0], 1, timeout_milli_sec);
+		int r = 0;
+		int interupt_count = 0;
+		while (true) {
+			r = epoll_wait(fd,  &events[0], 1, timeout_milli_sec);
+			if (r < 0 && errno == EINTR) {
+				if (interupt_count < 3) {
+					++interupt_count;
+					continue;
+				}
+			}
+			break;
+		}
 		if (r < 0) {
 			if (errno == EINTR) {
-				lputs(__FILE__, __LINE__, error_level, "EINTR");
 				return result;
 			}
 			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());

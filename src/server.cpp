@@ -50,8 +50,7 @@ namespace rediscpp
 			poll->append(event);
 			++base_poll_count;
 
-			thread_pool.resize(threads);
-			startup_threads();
+			startup_threads(threads);
 		}
 		while (true) {
 			try {
@@ -111,11 +110,9 @@ namespace rediscpp
 	void server_type::on_server(socket_type * s, int events)
 	{
 		std::shared_ptr<socket_type> cs = s->accept();
-		s->mod();
 		if (!cs.get()) {
 			return;
 		}
-		lprintf(__FILE__, __LINE__, info_level, "accepted");
 		//新規受け付けは停止中
 		if (shutdown) {
 			cs->shutdown(true, true);
@@ -129,13 +126,10 @@ namespace rediscpp
 		ct->set(ct);
 		cs->set_extra(this);
 		cs->set_extra2(ct.get());
-		lprintf(__FILE__, __LINE__, info_level, "process");
 		ct->process();
 		if (cs->done()) {
 			cs->close();
-			lprintf(__FILE__, __LINE__, info_level, "done");
 		} else {
-			lprintf(__FILE__, __LINE__, info_level, "cont");
 			//１回の接続で送受信が終わってない場合
 			if (thread_pool.empty()) {
 				poll->append(cs);
@@ -499,8 +493,9 @@ namespace rediscpp
 	{
 		shutdown_threads();
 	}
-	void server_type::startup_threads()
+	void server_type::startup_threads(int threads)
 	{
+		thread_pool.resize(threads);
 		for (auto it = thread_pool.begin(), end = thread_pool.end(); it != end; ++it) {
 			it->reset(new worker_type(*this));
 			(*it)->craete();

@@ -217,9 +217,9 @@ namespace rediscpp
 	public:
 		server_type();
 		~server_type();
-		void startup_threads();
+		void startup_threads(int threads);
 		void shutdown_threads();
-		bool start(const std::string & hostname, const std::string & port, int threads = 4);
+		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
 	private:
 		void remove_client(std::shared_ptr<client_type> client);

@@ -63,7 +63,6 @@ namespace rediscpp
 		{
 			memset(&events, 0, sizeof(events));
 			events.data.ptr = this;
-			lprintf(__FILE__, __LINE__, info_level, "pollable_type %d %p", fd, this);
 		}
 		virtual ~pollable_type()
 		{
@@ -137,9 +136,8 @@ namespace rediscpp
 		virtual uint32_t get_events()
 		{
 			if (local.get()) {//server
-				return EPOLLIN | EPOLLET | EPOLLONESHOT;
+				return EPOLLIN;
 			}
-			lprintf(__FILE__, __LINE__, error_level, "use client event type %d", this->should_send());
 			return EPOLLIN | EPOLLET | EPOLLONESHOT | (should_send() ? EPOLLOUT : 0);
 		}
 		bool done() const { return recv_done() && ! should_recv() && ! should_send(); }
@@ -196,21 +194,31 @@ namespace rediscpp
 		}
 		bool recv()
 		{
-			uint64_t counter = 0;
-			int r = read(fd, &counter, sizeof(counter));
-			if (r == sizeof(counter)) {
-				return 0 < counter;
-			}
-			if (r < 0) {
-				switch (errno) {
-				case EAGAIN://イベントが発生していない
-					return false;
-				default:
-					lprintf(__FILE__, __LINE__, error_level, "::write failed:%s", string_error(errno).c_str());
-					return false;
+			int interupt_count = 0;
+			while (true) {
+				uint64_t counter = 0;
+				int r = read(fd, &counter, sizeof(counter));
+				if (r == sizeof(counter)) {
+					return 0 < counter;
 				}
+				if (r < 0) {
+					switch (errno) {
+					case EINTR:
+						if (interupt_count < 3) {
+							++interupt_count;
+							continue;
+						}
+						return false;
+					case EAGAIN://イベントが発生していない
+						return false;
+					default:
+						lprintf(__FILE__, __LINE__, error_level, "::write failed:%s", string_error(errno).c_str());
+						return false;
+					}
+				}
+				lprintf(__FILE__, __LINE__, error_level, "::write failed: r(%d) < sizeof(uint64_t)", r);
+				break;
 			}
-			lprintf(__FILE__, __LINE__, error_level, "::write failed: r(%d) < sizeof(uint64_t)", r);
 			return false;
 		}
 		virtual uint32_t get_events()
