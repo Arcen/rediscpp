@@ -231,7 +231,6 @@ namespace rediscpp
 	{
 		int fd;
 		int count;
-		std::vector<epoll_event> events;///<受信用
 		std::weak_ptr<poll_type> self;
 		mutex_type mutex;
 		poll_type();
@@ -242,12 +241,11 @@ namespace rediscpp
 	private:
 		bool operation(std::shared_ptr<pollable_type> pollable, int op);
 	public:
+		int get_count() const { return count; }
 		bool append(std::shared_ptr<pollable_type> pollable) { return operation(pollable, EPOLL_CTL_ADD); }
 		bool modify(std::shared_ptr<pollable_type> pollable) { return operation(pollable, EPOLL_CTL_MOD); }
 		bool remove(std::shared_ptr<pollable_type> pollable) { return operation(pollable, EPOLL_CTL_DEL); }
-		bool wait(int timeout_milli_sec = 0, int activate_count = 1);
-		int get_count() const { return count; }
-		std::pair<pollable_type *, uint32_t> wait_one(int timeout_milli_sec = 0);
+		bool wait(std::vector<epoll_event> & events, int timeout_milli_sec = 0);
 	};
 }
 

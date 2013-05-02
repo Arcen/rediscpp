@@ -380,7 +380,6 @@ namespace rediscpp
 	poll_type::poll_type()
 		: fd(-1)
 		, count(0)
-		, events(1024)
 	{
 		fd = ::epoll_create1(EPOLL_CLOEXEC);
 		if (fd < 0) {
@@ -435,20 +434,17 @@ namespace rediscpp
 		}
 		return true;
 	}
-	bool poll_type::wait(int timeout_milli_sec, int activate_count)
+	bool poll_type::wait(std::vector<epoll_event> & events, int timeout_milli_sec)
 	{
-		return false;
-		if (count < activate_count) {
-			activate_count = count;
+		if (count < events.size()) {
+			events.resize(count);
 		}
-		if (activate_count <= 0) {
+		if (events.empty()) {
 			return true;
 		}
-		if (events.size() < activate_count) {
-			events.resize(activate_count + 16);
-		}
-		int r = epoll_wait(fd,  &events[0], activate_count, timeout_milli_sec);
+		int r = epoll_wait(fd,  &events[0], events.size(), timeout_milli_sec);
 		if (r < 0) {
+			events.clear();
 			if (errno == EINTR) {
 				//lputs(__FILE__, __LINE__, error_level, "EINTR");
 				return true;
@@ -456,55 +452,9 @@ namespace rediscpp
 			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());
 			return false;
 		}
-		if (activate_count < r) {
-			lputs(__FILE__, __LINE__, error_level, "epoll_wait return incorrect size");
-			r = activate_count;
-		}
-		for (auto it = events.begin(), end = events.begin() + r; it != end; ++it) {
-			auto & event = *it;
-			pollable_type * ptr = reinterpret_cast<pollable_type *>(event.data.ptr);
-			if (ptr) {
-				ptr->trigger(event.events);
-			}
+		if (r < events.size()) {
+			events.resize(r);
 		}
 		return true;
-	}
-	std::pair<pollable_type *, uint32_t> poll_type::wait_one(int timeout_milli_sec)
-	{
-		std::pair<pollable_type *, uint32_t> result;
-		result.first = NULL;
-		result.second = 0;
-		if (count < 1) {
-			return result;
-		}
-		epoll_event events[16];
-		int r = 0;
-		int interupt_count = 0;
-		while (true) {
-			r = epoll_wait(fd,  &events[0], 1, timeout_milli_sec);
-			if (r < 0 && errno == EINTR) {
-				if (interupt_count < 3) {
-					++interupt_count;
-					continue;
-				}
-			}
-			break;
-		}
-		if (r < 0) {
-			if (errno == EINTR) {
-				return result;
-			}
-			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());
-			return result;
-		}
-		if (1 < r) {
-			lputs(__FILE__, __LINE__, error_level, "epoll_wait return incorrect size");
-			r = 1;
-		}
-		if (r == 1) {
-			result.first = reinterpret_cast<pollable_type *>(events[0].data.ptr);
-			result.second = events[0].events;
-		}
-		return result;
 	}
 }

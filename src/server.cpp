@@ -525,14 +525,14 @@ namespace rediscpp
 	{
 		try
 		{
+			std::vector<epoll_event> events(1);
 			//poll->wait(1000);
-			auto result = poll->wait_one(1000);
-			if (result.first) {
-				//lprintf(__FILE__, __LINE__, info_level, "trigger %p", result.first);
-				//lprintf(__FILE__, __LINE__, info_level, "trigger %d/%d", result.first->get_handle(), result.second);
-				result.first->trigger(result.second);
-			} else {
-				//lprintf(__FILE__, __LINE__, info_level, "timeout %p", result.first);
+			poll->wait(events, 1000);
+			for (auto it = events.begin(), end = events.end(); it != end; ++it) {
+				auto pollable = reinterpret_cast<pollable_type*>(it->data.ptr);
+				if (pollable) {
+					pollable->trigger(it->events);
+				}
 			}
 		} catch (std::exception e) {
 			lprintf(__FILE__, __LINE__, info_level, "exception %s", e.what());
