@@ -24,7 +24,7 @@ namespace rediscpp
 		}
 		return false;
 	}
-	///”FØ 
+	///èªè¨¼ 
 	///@param[in] password
 	///@note Available since 1.0.0.
 	bool server_type::api_auth(client_type * client)
@@ -43,7 +43,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///ƒGƒR[ 
+	///ã‚¨ã‚³ãƒ¼ 
 	///@param[in] message
 	///@note Available since 1.0.0.
 	bool server_type::api_echo(client_type * client)
@@ -63,7 +63,7 @@ namespace rediscpp
 		client->response_pong();
 		return true;
 	}
-	///I—¹
+	///çµ‚äº†
 	///@note Available since 1.0.0.
 	bool server_type::api_quit(client_type * client)
 	{
@@ -71,7 +71,7 @@ namespace rediscpp
 		client->close_after_send();
 		return true;
 	}
-	///ƒf[ƒ^ƒx[ƒX‘I‘ğ
+	///ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹é¸æŠ
 	///@param[in] index
 	///@note Available since 1.0.0.
 	bool server_type::api_select(client_type * client)

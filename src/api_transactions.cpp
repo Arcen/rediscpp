@@ -25,7 +25,7 @@ namespace rediscpp
 		transaction_arguments.push_back(arguments);
 		return true;
 	}
-	///ƒgƒ‰ƒ“ƒUƒNƒVƒ‡ƒ“‚ÌŠJn
+	///ãƒˆãƒ©ãƒ³ã‚¶ã‚¯ã‚·ãƒ§ãƒ³ã®é–‹å§‹
 	///@note Available since 1.2.0.
 	bool server_type::api_multi(client_type * client)
 	{
@@ -42,12 +42,12 @@ namespace rediscpp
 		transaction_arguments.pop_front();
 		return true;
 	}
-	///ƒgƒ‰ƒ“ƒUƒNƒVƒ‡ƒ“‚ÌÀs
+	///ãƒˆãƒ©ãƒ³ã‚¶ã‚¯ã‚·ãƒ§ãƒ³ã®å®Ÿè¡Œ
 	///@note Available since 1.2.0.
 	bool server_type::api_exec(client_type * client)
 	{
-		//ŠÄ‹‚µ‚Ä‚¢‚½’l‚ª•ÏX‚³‚ê‚Ä‚¢‚È‚¢‚©Šm”F‚·‚é
-		//@todo ƒ}ƒ‹ƒ`ƒXƒŒƒbƒh‚É‚·‚é‚É‚ÍŠm”F‚µ‚Â‚ÂAƒƒbƒN‚ğæ“¾‚µ‚Ä‚¢‚­
+		//ç›£è¦–ã—ã¦ã„ãŸå€¤ãŒå¤‰æ›´ã•ã‚Œã¦ã„ãªã„ã‹ç¢ºèªã™ã‚‹
+		//@todo ãƒãƒ«ãƒã‚¹ãƒ¬ãƒƒãƒ‰ã«ã™ã‚‹ã«ã¯ç¢ºèªã—ã¤ã¤ã€ãƒ­ãƒƒã‚¯ã‚’å–å¾—ã—ã¦ã„ã
 		auto & watching = client->get_watching();
 		auto current = client->get_time();
 		for (auto it = watching.begin(), end = watching.end(); it != end; ++it) {
@@ -86,7 +86,7 @@ namespace rediscpp
 		transaction_arguments.clear();
 		unwatch();
 	}
-	///ƒgƒ‰ƒ“ƒUƒNƒVƒ‡ƒ“‚Ì’†~
+	///ãƒˆãƒ©ãƒ³ã‚¶ã‚¯ã‚·ãƒ§ãƒ³ã®ä¸­æ­¢
 	///@note Available since 2.0.0.
 	bool server_type::api_discard(client_type * client)
 	{
@@ -98,7 +98,7 @@ namespace rediscpp
 	{
 		watching.insert(std::tuple<std::string,int,timeval_type>(key, db_index, timeval_type()));
 	}
-	///’l‚Ì•ÏX‚ÌŠÄ‹
+	///å€¤ã®å¤‰æ›´ã®ç›£è¦–
 	///@note Available since 2.2.0.
 	bool server_type::api_watch(client_type * client)
 	{
@@ -109,7 +109,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///’l‚Ì•ÏX‚ÌŠÄ‹‚Ì’†~
+	///å€¤ã®å¤‰æ›´ã®ç›£è¦–ã®ä¸­æ­¢
 	///@note Available since 2.2.0.
 	bool server_type::api_unwatch(client_type * client)
 	{

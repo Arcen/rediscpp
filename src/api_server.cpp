@@ -3,7 +3,7 @@
 
 namespace rediscpp
 {
-	///ƒf[ƒ^ƒx[ƒX‚ÌƒL[”æ“¾ 
+	///ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®ã‚­ãƒ¼æ•°å–å¾— 
 	///@note Available since 1.0.0.
 	bool server_type::api_dbsize(client_type * client)
 	{
@@ -11,7 +11,7 @@ namespace rediscpp
 		client->response_integer(db.get_dbsize());
 		return true;
 	}
-	///ƒf[ƒ^ƒx[ƒX‚Ì‘SƒL[Á‹ 
+	///ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®å…¨ã‚­ãƒ¼æ¶ˆå» 
 	///@note Available since 1.0.0.
 	bool server_type::api_flushall(client_type * client)
 	{
@@ -21,7 +21,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///‘I‘ğ‚µ‚Ä‚¢‚éƒf[ƒ^ƒx[ƒX‚Ì‘SƒL[Á‹ 
+	///é¸æŠã—ã¦ã„ã‚‹ãƒ‡ãƒ¼ã‚¿ãƒ™ãƒ¼ã‚¹ã®å…¨ã‚­ãƒ¼æ¶ˆå» 
 	///@note Available since 1.0.0.
 	bool server_type::api_flushdb(client_type * client)
 	{
@@ -30,8 +30,8 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///ƒT[ƒo‚ÌƒVƒƒƒbƒgƒ_ƒEƒ“
-	///@note NOSAVE, SAVEƒIƒvƒVƒ‡ƒ“‚Í–³‹‚·‚é
+	///ã‚µãƒ¼ãƒã®ã‚·ãƒ£ãƒƒãƒˆãƒ€ã‚¦ãƒ³
+	///@note NOSAVE, SAVEã‚ªãƒ—ã‚·ãƒ§ãƒ³ã¯ç„¡è¦–ã™ã‚‹
 	///@note Available since 1.0.0.
 	bool server_type::api_shutdown(client_type * client)
 	{
@@ -40,7 +40,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///ƒT[ƒo‚ÌŠÔ
+	///ã‚µãƒ¼ãƒã®æ™‚é–“
 	///@note Available since 2.6.0.
 	///@note Time complexity: O(1)
 	bool server_type::api_time(client_type * client)

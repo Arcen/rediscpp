@@ -268,7 +268,7 @@ namespace rediscpp
 			return false;
 		}
 		if (!send_buffers.empty()) {
-			send_vectors.resize(std::min<size_t>(IOV_MAX, send_buffers.size()));
+			std::vector<iovec> send_vectors(std::min<size_t>(IOV_MAX, send_buffers.size()));
 			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
 				auto & src = send_buffers[i];
 				iovec & iv = send_vectors[i];
@@ -299,12 +299,13 @@ namespace rediscpp
 				auto & front_buffer = send_buffers.front();
 				auto & buf = front_buffer.first;
 				auto & offset = front_buffer.second;
-				if (r < buf.size() - offset) {
+				auto len = buf.size() - offset;
+				if (r < len) {
 					offset += r;
 					r = 0;
 					break;
 				} else {
-					r -= buf.size() - offset;
+					r -= len;
 					send_buffers.pop_front();
 				}
 			}

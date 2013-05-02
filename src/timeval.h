@@ -32,6 +32,15 @@ namespace rediscpp
 			ts.tv_nsec = tv_usec * 1000;
 			return ts;
 		}
+		bool is_epoc() const
+		{
+			return tv_sec == 0 && tv_usec == 0;
+		}
+		void epoc()
+		{
+			tv_sec = 0;
+			tv_usec = 0;
+		}
 	};
 }
 

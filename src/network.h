@@ -120,7 +120,6 @@ namespace rediscpp
 	private:
 		std::deque<uint8_t> recv_buffer;
 		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
-		std::vector<iovec> send_vectors;
 	public:
 		bool should_send() const { return ! send_buffers.empty() && ! is_write_shutdowned(); }
 		bool should_recv() const { return ! recv_buffer.empty() && ! is_read_shutdowned(); }

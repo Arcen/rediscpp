@@ -3,7 +3,7 @@
 
 namespace rediscpp
 {
-	///ƒL[‚ğíœ‚·‚é
+	///ã‚­ãƒ¼ã‚’å‰Šé™¤ã™ã‚‹
 	///@note Available since 1.0.0.
 	bool server_type::api_del(client_type * client)
 	{
@@ -23,7 +23,7 @@ namespace rediscpp
 		client->response_integer(removed);
 		return true;
 	}
-	///ƒL[‚Ì‘¶İŠm”F
+	///ã‚­ãƒ¼ã®å­˜åœ¨ç¢ºèª
 	///@note Available since 1.0.0.
 	bool server_type::api_exists(client_type * client)
 	{
@@ -45,90 +45,31 @@ namespace rediscpp
 		}
 		return true;
 	}
-	bool value_interface::is_expired(const timeval_type & current)
-	{
-		return expiring && expire_time <= current;
-	}
-	void value_interface::expire(const timeval_type & at)
-	{
-		expiring = true;
-		expire_time = at;
-	}
-	void value_interface::persist()
-	{
-		expiring = false;
-	}
-	///ƒL[‚Ì—LŒøŠúŒÀİ’è
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™è¨­å®š
 	///@note Available since 1.0.0.
 	bool server_type::api_expire(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & db = databases[client->get_db_index()];
-		auto & key = arguments[1];
-		auto current = client->get_time();
-		auto value = db.get(key, current);
-		if (!value.get()) {
-			client->response_integer0();
-			return true;
-		}
-		timeval_type tv = client->get_time();
-		tv.tv_sec += strtoll(arguments[2].first.c_str(), NULL, 10);
-		value->expire(tv);
-		client->response_integer1();
-		//@todo expire‚·‚éƒL[‚ÌƒŠƒXƒg‚ğì‚Á‚Ä‚¨‚«A‚»‚ê‚ğ‰ß‚¬‚½‚çÁ‚·‚æ‚¤‚É‚µ‚½‚¢
-		return true;
+		return api_expire_internal(client, true, true);
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀİ’è
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™è¨­å®š
 	///@note Available since 1.0.0.
 	bool server_type::api_expireat(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & db = databases[client->get_db_index()];
-		auto & key = arguments[1];
-		auto current = client->get_time();
-		auto value = db.get(key, current);
-		if (!value.get()) {
-			client->response_integer0();
-			return true;
-		}
-		timeval_type tv(strtoll(arguments[2].first.c_str(), NULL, 10), 0);
-		value->expire(tv);
-		client->response_integer1();
-		//@todo expire‚·‚éƒL[‚ÌƒŠƒXƒg‚ğì‚Á‚Ä‚¨‚«A‚»‚ê‚ğ‰ß‚¬‚½‚çÁ‚·‚æ‚¤‚É‚µ‚½‚¢
-		return true;
+		return api_expire_internal(client, true, false);
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀİ’è
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™è¨­å®š
 	///@note Available since 2.6.0.
 	bool server_type::api_pexpire(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & db = databases[client->get_db_index()];
-		auto & key = arguments[1];
-		auto current = client->get_time();
-		auto value = db.get(key, current);
-		if (!value.get()) {
-			client->response_integer0();
-			return true;
-		}
-		timeval_type tv = client->get_time();
-		tv.add_msec(strtoll(arguments[2].first.c_str(), NULL, 10));
-		value->expire(tv);
-		client->response_integer1();
-		//@todo expire‚·‚éƒL[‚ÌƒŠƒXƒg‚ğì‚Á‚Ä‚¨‚«A‚»‚ê‚ğ‰ß‚¬‚½‚çÁ‚·‚æ‚¤‚É‚µ‚½‚¢
-		return true;
+		return api_expire_internal(client, false, true);
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀİ’è
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™è¨­å®š
 	///@note Available since 2.6.0.
 	bool server_type::api_pexpireat(client_type * client)
+	{
+		return api_expire_internal(client, false, false);
+	}
+	bool server_type::api_expire_internal(client_type * client, bool sec, bool ts)
 	{
 		auto & arguments = client->get_arguments();
 		if (arguments.size() != 3) {
@@ -142,14 +83,29 @@ namespace rediscpp
 			client->response_integer0();
 			return true;
 		}
-		int64_t msec = strtoll(arguments[2].first.c_str(), NULL, 10);
-		timeval_type tv(msec / 1000, (msec % 1000) * 1000);
+		timeval_type tv(0,0);
+		int64_t time = strtoll(arguments[2].first.c_str(), NULL, 10);
+		if (ts) {
+			tv = client->get_time();
+			if (sec) {
+				tv.tv_sec += time;
+			} else {
+				tv.add_msec(time);
+			}
+		} else {
+			if (sec) {
+				tv.tv_sec = time;
+			} else {//msec
+				tv.tv_sec = time / 1000;
+				tv.tv_usec = (time % 1000) * 1000;
+			}
+		}
 		value->expire(tv);
 		client->response_integer1();
-		//@todo expire‚·‚éƒL[‚ÌƒŠƒXƒg‚ğì‚Á‚Ä‚¨‚«A‚»‚ê‚ğ‰ß‚¬‚½‚çÁ‚·‚æ‚¤‚É‚µ‚½‚¢
+		//@todo expireã™ã‚‹ã‚­ãƒ¼ã®ãƒªã‚¹ãƒˆã‚’ä½œã£ã¦ãŠãã€ãã‚Œã‚’éããŸã‚‰æ¶ˆã™ã‚ˆã†ã«ã—ãŸã„
 		return true;
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀÁ‹
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™æ¶ˆå»
 	///@note Available since 2.2.0.
 	bool server_type::api_persist(client_type * client)
 	{
@@ -169,33 +125,19 @@ namespace rediscpp
 		client->response_integer1();
 		return true;
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀŠm”F
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™ç¢ºèª
 	///@note Available since 1.0.0.
 	bool server_type::api_ttl(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 2) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & db = databases[client->get_db_index()];
-		auto & key = arguments[1];
-		auto current = client->get_time();
-		auto value = db.get(key, current);
-		if (!value.get()) {
-			client->response_integer(-2);
-			return true;
-		}
-		if (!value->is_expiring()) {
-			client->response_integer(-1);
-			return true;
-		}
-		timeval_type ttl = value->ttl(current);
-		client->response_integer((ttl.tv_sec * 2 + ttl.tv_sec / 500000 + 1) / 2);
-		return true;
+		return api_ttl_internal(client, true);
 	}
-	///ƒL[‚Ì—LŒøŠúŒÀŠm”F
+	///ã‚­ãƒ¼ã®æœ‰åŠ¹æœŸé™ç¢ºèª
 	///@note Available since 2.6.0.
 	bool server_type::api_pttl(client_type * client)
+	{
+		return api_ttl_internal(client, false);
+	}
+	bool server_type::api_ttl_internal(client_type * client, bool sec)
 	{
 		auto & arguments = client->get_arguments();
 		if (arguments.size() != 2) {
@@ -214,10 +156,14 @@ namespace rediscpp
 			return true;
 		}
 		timeval_type ttl = value->ttl(current);
-		client->response_integer(ttl.tv_sec * 1000 + ttl.tv_usec / 1000);
+		uint64_t result = ttl.tv_sec * 1000 + ttl.tv_usec / 1000;
+		if (sec) {
+			result /= 1000;
+		}
+		client->response_integer(result);
 		return true;
 	}
-	///ƒL[‚ÌˆÚ“®
+	///ã‚­ãƒ¼ã®ç§»å‹•
 	///@note Available since 1.0.0.
 	bool server_type::api_move(client_type * client)
 	{
@@ -251,7 +197,7 @@ namespace rediscpp
 		client->response_integer1();
 		return true;
 	}
-	///ƒ‰ƒ“ƒ_ƒ€‚ÈƒL[‚Ìæ“¾
+	///ãƒ©ãƒ³ãƒ€ãƒ ãªã‚­ãƒ¼ã®å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_randomkey(client_type * client)
 	{
@@ -265,7 +211,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒL[–¼‚Ì•ÏX
+	///ã‚­ãƒ¼åã®å¤‰æ›´
 	///@note Available since 1.0.0.
 	bool server_type::api_rename(client_type * client)
 	{
@@ -289,7 +235,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///ƒL[–¼‚Ì•ÏX(ã‘‚«•s‰Â)
+	///ã‚­ãƒ¼åã®å¤‰æ›´(ä¸Šæ›¸ãä¸å¯)
 	///@note Available since 1.0.0.
 	bool server_type::api_renamenx(client_type * client)
 	{
@@ -318,7 +264,7 @@ namespace rediscpp
 		client->response_integer1();
 		return true;
 	}
-	///Œ^
+	///å‹
 	///@note Available since 1.0.0.
 	bool server_type::api_type(client_type * client)
 	{

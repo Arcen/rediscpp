@@ -13,38 +13,43 @@ namespace rediscpp
 	class value_interface
 	{
 	protected:
-		bool null;
-		timeval_type last_modified_time;
-		bool expiring;
-		timeval_type expire_time;
+		timeval_type last_modified_time;///<最後に修正した時間(WATCH用)
+		timeval_type expire_time;///<0,0なら有効期限無し、消失する日時を保存する
 	public:
 		value_interface(const timeval_type & current)
-			: null(true)
-			, last_modified_time(current)
-			, expiring(false)
-			, expire_time(current)
+			: last_modified_time(current)
+			, expire_time(0,0)
 		{
 		}
 		virtual ~value_interface(){}
-		bool is_expired(const timeval_type & current);
-		bool is_expiring() const { return expiring; }
-		void expire(const timeval_type & at);
-		void persist();
-		bool is_null() const { return null; }
-		void set_null(bool null_ = true) { null = null_; }
-		const timeval_type & get_last_modified_time() const { return last_modified_time; }
 		virtual std::string get_type() = 0;
-		timeval_type ttl(timeval_type base) const {
-			base -= expire_time;
-			return base;
+		bool is_expired(const timeval_type & current)
+		{
+			return ! expire_time.is_epoc() && expire_time <= current;
+		}
+		void expire(const timeval_type & at)
+		{
+			expire_time = at;
+		}
+		void persist()
+		{
+			expire_time.epoc();
+		}
+		bool is_expiring() const { return ! expire_time.is_epoc(); }
+		timeval_type get_last_modified_time() const { return last_modified_time; }
+		timeval_type ttl(const timeval_type & current) const
+		{
+			if (is_expiring()) {
+				if (current < expire_time) {
+					return current - expire_time;
+				}
+			}
+			return timeval_type(0,0);
 		}
 	};
 	class string_type : public value_interface
 	{
 		std::string string_value;
-		int64_t int_value;
-		bool is_integer;
-		bool is_integer_and_string_mismatch;
 	public:
 		string_type(const argument_type & argument, const timeval_type & current);
 		virtual ~string_type(){}
@@ -94,6 +99,10 @@ namespace rediscpp
 		bool insert(const std::string & key, std::shared_ptr<value_interface> value)
 		{
 			return values.insert(std::make_pair(key, value)).second;
+		}
+		void replace(const std::string & key, std::shared_ptr<value_interface> value)
+		{
+			values[key] = value;
 		}
 		std::string randomkey(const timeval_type & current)
 		{
@@ -267,9 +276,11 @@ namespace rediscpp
 		bool api_expireat(client_type * client);
 		bool api_pexpire(client_type * client);
 		bool api_pexpireat(client_type * client);
+		bool api_expire_internal(client_type * client, bool sec, bool ts);
 		bool api_persist(client_type * client);
 		bool api_ttl(client_type * client);
 		bool api_pttl(client_type * client);
+		bool api_ttl_internal(client_type * client, bool sec);
 		bool api_move(client_type * client);
 		bool api_randomkey(client_type * client);
 		bool api_rename(client_type * client);
