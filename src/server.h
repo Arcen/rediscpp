@@ -58,7 +58,7 @@ namespace rediscpp
 	};
 	class database_type
 	{
-		std::map<std::string,std::shared_ptr<value_interface>> values;
+		std::unordered_map<std::string,std::shared_ptr<value_interface>> values;
 		mutex_type expire_mutex;
 		std::multimap<timeval_type,std::string> expires;
 		database_type(const database_type &);
