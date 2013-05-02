@@ -7,8 +7,6 @@ namespace rediscpp
 {
 	server_type::server_type()
 		: shutdown(false)
-		, thread_pool_mutex(true)
-		, thread_pool_cond(thread_pool_mutex)
 	{
 		databases.resize(1);
 		build_api_map();
@@ -23,14 +21,11 @@ namespace rediscpp
 		, db_index(0)
 		, transaction(false)
 		, current_time(0, 0)
-		, finished(false)
 	{
 		write_cache.reserve(1500);
 	}
 	bool server_type::start(const std::string & hostname, const std::string & port, int threads)
 	{
-		thread_pool.resize(threads);
-		startup_threads();
 		std::shared_ptr<address_type> addr(new address_type);
 		addr->set_hostname(hostname.c_str());
 		addr->set_port(atoi(port.c_str()));
@@ -42,17 +37,27 @@ namespace rediscpp
 		if (!listening->listen(512)) {
 			return false;
 		}
-		listening->set_callback(server_event);
 		listening->set_extra(this);
+		listening->set_callback(server_callback);
 		listening->set_nonblocking();
 		poll = poll_type::create();
 		poll->append(listening);
+		int base_poll_count = 1;
+		if (threads) {
+			event = event_type::create();
+			event->set_extra(this);
+			event->set_callback(event_callback);
+			poll->append(event);
+			++base_poll_count;
+
+			thread_pool.resize(threads);
+			startup_threads();
+		}
 		while (true) {
 			try {
-				thread_withdraw();
-				poll->wait(10);
+				process();
 				if (shutdown) {
-					if (poll->get_count() == 1) {
+					if (poll->get_count() == base_poll_count) {
 						lputs(__FILE__, __LINE__, info_level, "quit server, no client now");
 						break;
 					}
@@ -63,10 +68,13 @@ namespace rediscpp
 				lputs(__FILE__, __LINE__, info_level, "exception");
 			}
 		}
+		if (thread_pool.size()) {
+		}
 		return true;
 	}
-	void server_type::client_event(socket_type * s, int events)
+	void server_type::client_callback(pollable_type * p, int events)
 	{
+		socket_type * s = dynamic_cast<socket_type *>(p);
 		if (!s) {
 			return;
 		}
@@ -74,10 +82,11 @@ namespace rediscpp
 		if (!server) {
 			return;
 		}
-		server->on_client_event(s, events);
+		server->on_client(s, events);
 	}
-	void server_type::server_event(socket_type * s, int events)
+	void server_type::server_callback(pollable_type * p, int events)
 	{
+		socket_type * s = dynamic_cast<socket_type *>(p);
 		if (!s) {
 			return;
 		}
@@ -85,29 +94,113 @@ namespace rediscpp
 		if (!server) {
 			return;
 		}
-		server->on_server_event(s, events);
+		server->on_server(s, events);
 	}
-	void server_type::on_client_event(socket_type * s, int events)
+	void server_type::event_callback(pollable_type * p, int events)
 	{
+		event_type * e = dynamic_cast<event_type *>(p);
+		if (!e) {
+			return;
+		}
+		server_type * server = reinterpret_cast<server_type *>(e->get_extra());
+		if (!server) {
+			return;
+		}
+		server->on_event(e, events);
+	}
+	void server_type::on_server(socket_type * s, int events)
+	{
+		std::shared_ptr<socket_type> cs = s->accept();
+		s->mod();
+		if (!cs.get()) {
+			return;
+		}
+		lprintf(__FILE__, __LINE__, info_level, "accepted");
+		//新規受け付けは停止中
+		if (shutdown) {
+			cs->shutdown(true, true);
+			cs->close();
+			return;
+		}
+		cs->set_callback(client_callback);
+		cs->set_nonblocking();
+		cs->set_nodelay();
+		std::shared_ptr<client_type> ct(new client_type(*this, cs, password));
+		ct->set(ct);
+		cs->set_extra(this);
+		cs->set_extra2(ct.get());
+		lprintf(__FILE__, __LINE__, info_level, "process");
+		ct->process();
+		if (cs->done()) {
+			cs->close();
+			lprintf(__FILE__, __LINE__, info_level, "done");
+		} else {
+			lprintf(__FILE__, __LINE__, info_level, "cont");
+			//１回の接続で送受信が終わってない場合
+			if (thread_pool.empty()) {
+				poll->append(cs);
+				clients[cs.get()] = ct;
+			} else {
+				std::shared_ptr<job_type> job(new job_type(job_type::add_type, ct));
+				jobs.push(job);
+				event->send();
+			}
+		}
+	}
+	void server_type::on_event(event_type * e, int events)
+	{
+		e->recv();
+		while (true) {
+			auto job = jobs.pop(0);
+			if (!job) {
+				break;
+			}
+			switch (job->type) {
+			case job_type::add_type:
+				{
+					auto client = job->client;
+					auto cs = client->client;
+					poll->append(cs);
+					clients[cs.get()] = client;
+				}
+				break;
+			case job_type::del_type:
+				{
+					auto client = job->client;
+					auto cs = client->client;
+					cs->close();
+					clients.erase(cs.get());
+				}
+				break;
+			}
+		}
+		e->mod();
+	}
+	void server_type::on_client(socket_type * s, int events)
+	{
+		std::shared_ptr<client_type> client = reinterpret_cast<client_type *>(s->get_extra2())->get();
 		if ((events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) || s->is_broken()) {
 			//lprintf(__FILE__, __LINE__, info_level, "client closed");
-			s->close();
-			clients.erase(s);
+			remove_client(client);
 			return;
 		}
-		if (!thread_pool.empty()) {
-			if (events & (EPOLLIN|EPOLLOUT)) {
-				auto & client = clients[s];
-				poll->remove(client->client);
-				client->events = events;
-				mutex_locker locker(thread_pool_mutex);
-				task_queue.push_back(client);
-				thread_pool_cond.signal();
-			}
+		client->events = events;
+		client->process();
+		if (s->done()) {
+			remove_client(client);
 		} else {
-			auto client = clients[s];
-			client->events = events;
-			client->process();
+			s->mod();
+		}
+	}
+	void server_type::remove_client(std::shared_ptr<client_type> client)
+	{
+		if (thread_pool.empty()) {
+			client->client->close();
+			clients.erase(client->client.get());
+		} else {
+			std::shared_ptr<job_type> job(new job_type(job_type::del_type, client));
+			jobs.push(job);
+			event->send();
 		}
 	}
 	void client_type::process()
@@ -118,8 +211,7 @@ namespace rediscpp
 			if (client->should_recv()) {
 				parse();
 			}
-			if (client->recv_done() && !client->should_send()) {
-				finish();
+			if (client->done()) {
 				return;
 			}
 			if (client->should_send()) {
@@ -127,28 +219,6 @@ namespace rediscpp
 			}
 		} else if (events & EPOLLOUT) {//send
 			client->send();
-		}
-	}
-	void server_type::on_server_event(socket_type * s, int events)
-	{
-		while (true) {
-			std::shared_ptr<socket_type> client = s->accept();
-			if (!client.get()) {
-				return;
-			}
-			if (shutdown) {
-				client->shutdown(true, true);
-				client->close();
-				continue;
-			}
-			//lputs(__FILE__, __LINE__, info_level, "client connected");
-			client->set_callback(client_event);
-			client->set_nonblocking();
-			client->set_extra(this);
-			client->set_nodelay();
-			poll->append(client);
-			client_type * ct = new client_type(*this, client, password);
-			clients[client.get()].reset(ct);
 		}
 	}
 	void inline_command_parser(arguments_type & arguments, const std::string & line)
@@ -432,78 +502,51 @@ namespace rediscpp
 	void server_type::startup_threads()
 	{
 		for (auto it = thread_pool.begin(), end = thread_pool.end(); it != end; ++it) {
-			it->reset(new client_thread_type(*this));
+			it->reset(new worker_type(*this));
 			(*it)->craete();
 		}
 	}
 	void server_type::shutdown_threads()
 	{
+		if (thread_pool.empty()) {
+			return;
+		}
 		for (auto it = thread_pool.begin(), end = thread_pool.end(); it != end; ++it) {
 			auto & thread = *it;
 			thread->shutdown();
 		}
-		{
-			mutex_locker locker(thread_pool_mutex);
-			thread_pool_cond.broadcast();
-		}
+		//@todo レベルトリガの別イベントを発生させて、終了を通知しても良い
 		for (auto it = thread_pool.begin(), end = thread_pool.end(); it != end; ++it) {
 			auto & thread = *it;
 			thread->join();
 		}
 		thread_pool.clear();
 	}
-	client_thread_type::client_thread_type(server_type & server_)
+	worker_type::worker_type(server_type & server_)
 		: server(server_)
 	{
 	}
-	std::shared_ptr<client_type> server_type::thread_wait()
-	{
-		mutex_locker locker(thread_pool_mutex);
-		if (task_queue.empty()) {
-			thread_pool_cond.timedwait(1000000);
-			//thread_pool_cond.wait();
-			if (task_queue.empty()) {
-				return std::shared_ptr<client_type>();
-			}
-		}
-		std::shared_ptr<client_type> client = task_queue.front();
-		task_queue.pop_front();
-		return client;
-	}
-	void server_type::thread_return(std::shared_ptr<client_type> client)
-	{
-		mutex_locker locker(thread_pool_mutex);
-		return_queue.push_back(client);
-	}
-	void server_type::thread_withdraw()
-	{
-		mutex_locker locker(thread_pool_mutex);
-		while (!return_queue.empty()) {
-			auto client = return_queue.front();
-			return_queue.pop_front();
-			if (client->is_finished()) {
-				client->client->close();
-				clients.erase(client->client.get());
-				//lprintf(__FILE__, __LINE__, info_level, "client closed %d", clients.size());
-			} else {
-				poll->append(client->client);
-			}
-		}
-	}
-	void client_thread_type::run()
+	void server_type::process()
 	{
 		try
 		{
-			//外部からのタイミング待ち
-			auto client = server.thread_wait();
-			if (client.get()) {
-				client->process();
-				server.thread_return(client);
+			//poll->wait(1000);
+			auto result = poll->wait_one(1000);
+			if (result.first) {
+				//lprintf(__FILE__, __LINE__, info_level, "trigger %p", result.first);
+				//lprintf(__FILE__, __LINE__, info_level, "trigger %d/%d", result.first->get_handle(), result.second);
+				result.first->trigger(result.second);
+			} else {
+				//lprintf(__FILE__, __LINE__, info_level, "timeout %p", result.first);
 			}
 		} catch (std::exception e) {
 			lprintf(__FILE__, __LINE__, info_level, "exception %s", e.what());
 		} catch (...) {
 			lprintf(__FILE__, __LINE__, info_level, "exception");
 		}
+	}
+	void worker_type::run()
+	{
+		server.process();
 	}
 }

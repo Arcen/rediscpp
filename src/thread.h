@@ -149,6 +149,50 @@ namespace rediscpp
 			pthread_cond_broadcast(&cond);
 		}
 	};
+	template<typename T>
+	class sync_queue
+	{
+		mutex_type mutex;
+		condition_type cond;
+		std::queue<T> queue;
+	public:
+		sync_queue()
+			: cond(mutex)
+		{
+		}
+		void push(T value)
+		{
+			mutex_locker locker(mutex);
+			queue.push(value);
+		}
+		bool empty()
+		{
+			mutex_locker locker(mutex);
+			return queue.empty();
+		}
+		T pop(int usec)
+		{
+			mutex_locker locker(mutex);
+			while (true) {
+				if (queue.empty()) {
+					if (usec < 0) {
+						cond.wait();
+						continue;
+					} else if (usec < 0 ) {
+						cond.timedwait(usec);
+						usec = 0;
+						continue;
+					} else {
+						return T();
+					}
+				}
+				T value = queue.front();
+				queue.pop();
+				return value;
+			}
+		}
+	};
+
 	enum rwlock_types
 	{
 		write_lock_type,

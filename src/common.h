@@ -9,6 +9,7 @@
 #include <list>
 #include <set>
 #include <map>
+#include <queue>
 #include <tuple>
 #include <memory>
 #include <exception>

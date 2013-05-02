@@ -1,5 +1,4 @@
 #include "network.h"
-#include "log.h"
 #include <sys/types.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -123,55 +122,39 @@ namespace rediscpp
 		}
 		return 0;
 	}
-	socket_type::socket_type(int s_)
-		: s(s_)
+	socket_type::socket_type(int fd_)
+		: pollable_type(fd_)
 		, finished_to_read(false)
 		, finished_to_write(false)
 		, shutdowning(-1)
-		, extra(0)
 		, broken(false)
 	{
-		memset(&event, 0, sizeof(event));
-		event.data.ptr = this;
-		event.events = 0;
 	}
 	socket_type::~socket_type()
 	{
 		close();
 	}
-	void socket_type::close()
-	{
-		if (0 <= s) {
-			auto poll = this->poll.lock();
-			if (poll.get()) {
-				auto self = this->self.lock();
-				poll->remove(self);
-			}
-			::close(s);
-			s = -1;
-		}
-	}
 	std::shared_ptr<socket_type> socket_type::create(const address_type & address, bool stream)
 	{
-		int s = ::socket(address.get_family(), stream ? SOCK_STREAM : SOCK_DGRAM, 0);
-		if (s < 0) {
+		int fd = ::socket(address.get_family(), stream ? SOCK_STREAM : SOCK_DGRAM, 0);
+		if (fd < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::socket failed : " + string_error(errno));
 			return std::shared_ptr<socket_type>();
 		}
-		std::shared_ptr<socket_type> r = std::shared_ptr<socket_type>(new socket_type(s));
-		r->self = r;
-		return r;
+		std::shared_ptr<socket_type> result = std::shared_ptr<socket_type>(new socket_type(fd));
+		result->self = result;
+		return result;
 	}
 	bool socket_type::set_nonblocking(bool nonblocking)
 	{
-		int flags = fcntl(s, F_GETFL, 0);
+		int flags = fcntl(fd, F_GETFL, 0);
 		if (flags == -1) {
 			lputs(__FILE__, __LINE__, error_level, "::fcntl(F_GETFL) failed : " + string_error(errno));
 			return false;
 		}
 		if (((flags & O_NONBLOCK) != 0) != nonblocking) {
 			flags ^= O_NONBLOCK;
-			int r = fcntl(s, F_SETFL, flags);
+			int r = fcntl(fd, F_SETFL, flags);
 			if (r < 0) {
 				lputs(__FILE__, __LINE__, error_level, "::fcntl(F_SETFL) failed : " + string_error(errno));
 				return false;
@@ -182,7 +165,7 @@ namespace rediscpp
 	bool socket_type::set_reuse(bool reuse)
 	{
 		int option = reuse ? 1 : 0;
-		int r = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+		int r = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::setsockopt(SO_REUSEADDR) failed : " + string_error(errno));
 			return false;
@@ -192,7 +175,7 @@ namespace rediscpp
 	bool socket_type::set_nodelay(bool nodelay)
 	{
 		int option = nodelay ? 1 : 0;
-		int r = setsockopt(s, SOL_TCP, TCP_NODELAY, &option, sizeof(option));
+		int r = setsockopt(fd, SOL_TCP, TCP_NODELAY, &option, sizeof(option));
 		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::setsockopt(TCP_NODELAY) failed : " + string_error(errno));
 			return false;
@@ -201,7 +184,7 @@ namespace rediscpp
 	}
 	bool socket_type::bind(std::shared_ptr<address_type> address)
 	{
-		int r = ::bind(s, address->get_sockaddr(), address->get_sockaddr_size());
+		int r = ::bind(fd, address->get_sockaddr(), address->get_sockaddr_size());
 		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::bind failed : " + string_error(errno));
 			return false;
@@ -211,7 +194,7 @@ namespace rediscpp
 	}
 	bool socket_type::listen(int queue_count)
 	{
-		int r = ::listen(s, queue_count);
+		int r = ::listen(fd, queue_count);
 		if (r < 0) {
 			lputs(__FILE__, __LINE__, error_level, "::listen failed : " + string_error(errno));
 			return false;
@@ -223,28 +206,14 @@ namespace rediscpp
 		std::shared_ptr<address_type> addr(new address_type());
 		addr->set_family(local->get_family());
 		socklen_t addr_len = static_cast<socklen_t>(addr->get_sockaddr_size());
-		int fd = ::accept(s, addr->get_sockaddr(), &addr_len);
-		if (fd < 0) {
+		int cs = ::accept(fd, addr->get_sockaddr(), &addr_len);
+		if (cs < 0) {
 			return std::shared_ptr<socket_type>();
 		}
-		std::shared_ptr<socket_type> child(new socket_type(fd));
+		std::shared_ptr<socket_type> child(new socket_type(cs));
 		child->self = child;
 		//child->peer = addr;
 		return child;
-	}
-	void socket_type::set_poll(std::shared_ptr<poll_type> poll_)
-	{
-		poll = poll_;
-	}
-	void socket_type::set_callback(std::function<void(socket_type * s,int)> function)
-	{
-		on_event_function = function;
-	}
-	void socket_type::on_event(int flag)
-	{
-		if (on_event_function) {
-			on_event_function(this, flag);
-		}
 	}
 	bool socket_type::send(const void * buf, size_t len)
 	{
@@ -269,7 +238,7 @@ namespace rediscpp
 			return true;
 		}
 		shutdowning = shut;
-		int r = ::shutdown(s, shutdowning);
+		int r = ::shutdown(fd, shutdowning);
 		if (r < 0) {
 			switch (errno) {
 			case EBADF:
@@ -283,8 +252,8 @@ namespace rediscpp
 	}
 	bool socket_type::send()
 	{
-		if (s < 0) {
-			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", s);
+		if (fd < 0) {
+			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", fd);
 			return false;
 		}
 		if (!send_buffers.empty()) {
@@ -295,13 +264,13 @@ namespace rediscpp
 				iv.iov_base = & src.first[0] + src.second;
 				iv.iov_len = src.first.size() - src.second;
 			}
-			ssize_t r = ::writev(s, &send_vectors[0], static_cast<int>(send_vectors.size()));
+			ssize_t r = ::writev(fd, &send_vectors[0], static_cast<int>(send_vectors.size()));
 			if (r < 0) {
 				if (errno == EAGAIN) {
 					return false;
 				}
 				broken = true;
-				lprintf(__FILE__, __LINE__, error_level, "writev(%d) failed:%s", s, string_error(errno).c_str());
+				lprintf(__FILE__, __LINE__, error_level, "writev(%d) failed:%s", fd, string_error(errno).c_str());
 				return false;
 			}
 			while (0 < r && ! send_buffers.empty()) {
@@ -324,10 +293,7 @@ namespace rediscpp
 				return true;
 			}
 		}
-		auto poll = this->poll.lock();
-		if (poll.get()) {
-			poll->modify(self.lock());
-		}
+		mod();
 		return true;
 	}
 	bool socket_type::recv()
@@ -337,7 +303,7 @@ namespace rediscpp
 		}
 		uint8_t buf[1500];
 		while (true) {
-			ssize_t r = ::read(s, buf, sizeof(buf));
+			ssize_t r = ::read(fd, buf, sizeof(buf));
 			if (0 < r) {
 				recv_buffer.insert(recv_buffer.end(), &buf[0], &buf[0] + r);
 			} else if (r == 0) {
@@ -353,6 +319,27 @@ namespace rediscpp
 	{
 		finished_to_write = true;
 		send();
+	}
+	void pollable_type::close()
+	{
+		if (0 <= fd) {
+			auto poll = this->poll.lock();
+			if (poll.get()) {
+				auto self = this->self.lock();
+				poll->remove(self);
+			}
+			::close(fd);
+			fd = -1;
+		}
+	}
+	void pollable_type::mod()
+	{
+		auto poll_ = poll.lock();
+		if (poll_.get()) {
+			poll_->modify(self.lock());
+		} else {
+			lprintf(__FILE__, __LINE__, error_level, "not added, could not mod");
+		}
 	}
 	std::shared_ptr<poll_type> poll_type::create()
 	{
@@ -382,52 +369,55 @@ namespace rediscpp
 		}
 	}
 	///@param[in] op EPOLL_CTL_ADD, EPOLL_CTL_MOD, EPOLL_CTL_DEL
-	bool poll_type::operation(std::shared_ptr<socket_type> socket, int op)
+	bool poll_type::operation(std::shared_ptr<pollable_type> pollable, int op)
 	{
-		if (!socket) {
-			lprintf(__FILE__, __LINE__, error_level, "empty socket");
+		if (!pollable) {
+			lprintf(__FILE__, __LINE__, error_level, "empty object");
 			return false;
 		}
-		auto & event = socket->event;
-		int newevents = EPOLLIN | (socket->should_send() ? EPOLLOUT : 0);
-		if (newevents == event.events && op == EPOLL_CTL_MOD) {
-			//lprintf(__FILE__, __LINE__, error_level, "no need modify");
+		auto & events = pollable->events;
+		auto newevents = pollable->get_events();
+		/*
+		if (newevents == events.events && op == EPOLL_CTL_MOD && !(newevents & EPOLLONESHOT)) {
+			lprintf(__FILE__, __LINE__, error_level, "no need modify");
 			return true;
 		}
-		event.events = newevents;
-		int r = epoll_ctl(fd, op, socket->get_handle(), op == EPOLL_CTL_DEL ? NULL : &event);
-
-		//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d,%s)", socket->get_handle(), op == EPOLL_CTL_ADD ? "add" : (op == EPOLL_CTL_MOD ? "mod" : (op == EPOLL_CTL_DEL ? "del" : "unknown")));
+		*/
+		events.events = newevents;
+		int r = epoll_ctl(fd, op, pollable->get_handle(), op == EPOLL_CTL_DEL ? NULL : &events);
+		//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d,%s)", pollable->get_handle(), op == EPOLL_CTL_ADD ? "add" : (op == EPOLL_CTL_MOD ? "mod" : (op == EPOLL_CTL_DEL ? "del" : "unknown")));
 		if (r < 0) {
-			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d) failed:%s", socket->get_handle(), string_error(errno).c_str());
+			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl(%d) failed:%s", pollable->get_handle(), string_error(errno).c_str());
 			return false;
 		}
 		if (op == EPOLL_CTL_ADD) {
 			++count;
-			//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
-			socket->set_poll(self.lock());
+			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl add %d", count);
+			pollable->set_poll(self.lock());
 		} else if (op == EPOLL_CTL_DEL) {
 			if (0 < count) {
 				--count;
-				//lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
-			} else {
-				//lputs(__FILE__, __LINE__, error_level, "epoll_ctl del but incorrect");
 			}
-			socket->set_poll(std::shared_ptr<poll_type>());
+			lprintf(__FILE__, __LINE__, error_level, "epoll_ctl del %d", count);
+			pollable->set_poll(std::shared_ptr<poll_type>());
 		} else {
-			lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
+			//lputs(__FILE__, __LINE__, error_level, "epoll_ctl mod");
 		}
 		return true;
 	}
-	bool poll_type::wait(int timeout_milli_sec)
+	bool poll_type::wait(int timeout_milli_sec, int activate_count)
 	{
-		if (count <= 0) {
+		return false;
+		if (count < activate_count) {
+			activate_count = count;
+		}
+		if (activate_count <= 0) {
 			return true;
 		}
-		if (events.size() < count) {
-			events.resize(count + 16);
+		if (events.size() < activate_count) {
+			events.resize(activate_count + 16);
 		}
-		int r = epoll_wait(fd,  &events[0], count, timeout_milli_sec);
+		int r = epoll_wait(fd,  &events[0], activate_count, timeout_milli_sec);
 		if (r < 0) {
 			if (errno == EINTR) {
 				//lputs(__FILE__, __LINE__, error_level, "EINTR");
@@ -436,17 +426,46 @@ namespace rediscpp
 			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());
 			return false;
 		}
-		if (events.size() < r) {
+		if (activate_count < r) {
 			lputs(__FILE__, __LINE__, error_level, "epoll_wait return incorrect size");
-			r = events.size();
+			r = activate_count;
 		}
 		for (auto it = events.begin(), end = events.begin() + r; it != end; ++it) {
 			auto & event = *it;
-			socket_type * ptr = reinterpret_cast<socket_type *>(event.data.ptr);
+			pollable_type * ptr = reinterpret_cast<pollable_type *>(event.data.ptr);
 			if (ptr) {
-				ptr->on_event(event.events);
+				ptr->trigger(event.events);
 			}
 		}
 		return true;
+	}
+	std::pair<pollable_type *, uint32_t> poll_type::wait_one(int timeout_milli_sec)
+	{
+		std::pair<pollable_type *, uint32_t> result;
+		result.first = NULL;
+		result.second = 0;
+		if (count < 1) {
+			return result;
+		}
+		epoll_event events[16];
+		//mutex_locker locker(mutex);
+		int r = epoll_wait(fd,  &events[0], 1, timeout_milli_sec);
+		if (r < 0) {
+			if (errno == EINTR) {
+				lputs(__FILE__, __LINE__, error_level, "EINTR");
+				return result;
+			}
+			lprintf(__FILE__, __LINE__, error_level, "epoll_wait failed:%s", string_error(errno).c_str());
+			return result;
+		}
+		if (1 < r) {
+			lputs(__FILE__, __LINE__, error_level, "epoll_wait return incorrect size");
+			r = 1;
+		}
+		if (r == 1) {
+			result.first = reinterpret_cast<pollable_type *>(events[0].data.ptr);
+			result.second = events[0].events;
+		}
+		return result;
 	}
 }

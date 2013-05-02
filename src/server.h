@@ -128,7 +128,7 @@ namespace rediscpp
 		std::vector<uint8_t> write_cache;
 		timeval_type current_time;
 		int events;//for thread
-		bool finished;
+		std::weak_ptr<client_type> self;
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse();
@@ -164,51 +164,65 @@ namespace rediscpp
 		bool unqueue();
 		timeval_type get_time() const { return current_time; }
 		void process();
-		void finish() { finished = true; }
-		bool is_finished() const { return finished; }
+		void set(std::shared_ptr<client_type> self_) { self = self_; }
+		std::shared_ptr<client_type> get() { return self.lock(); }
 	private:
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);
 		bool execute();
 	};
-	class client_thread_type : public thread_type
+	class worker_type : public thread_type
 	{
 		server_type & server;
 	public:
-		client_thread_type(server_type & server_);
+		worker_type(server_type & server_);
 		virtual void run();
-		void signal();
+	};
+	class job_type
+	{
+	public:
+		enum job_types
+		{
+			add_type,
+			del_type,
+		};
+		job_types type;
+		std::shared_ptr<client_type> client;
+		job_type(job_types type_, std::shared_ptr<client_type> client_)
+			: type(type_)
+			, client(client_)
+		{
+		}
 	};
 	class server_type
 	{
 		friend class client_type;
 		std::shared_ptr<poll_type> poll;
+		std::shared_ptr<event_type> event;
 		std::map<socket_type*,std::shared_ptr<client_type>> clients;
 		std::shared_ptr<socket_type> listening;
 		std::map<std::string,std::string> store;
 		std::string password;
 		std::vector<database_type> databases;
-		std::vector<std::shared_ptr<client_thread_type>> thread_pool;
+		std::vector<std::shared_ptr<worker_type>> thread_pool;
 		rwlock_type db_lock;
-		mutex_type thread_pool_mutex;
-		condition_type thread_pool_cond;
-		std::list<std::shared_ptr<client_type>> task_queue;
-		std::list<std::shared_ptr<client_type>> return_queue;
+		sync_queue<std::shared_ptr<job_type>> jobs;
 		bool shutdown;
-		static void client_event(socket_type * s, int events);
-		static void server_event(socket_type * s, int events);
-		void on_client_event(socket_type * s, int events);
-		void on_server_event(socket_type * s, int events);
+		static void client_callback(pollable_type * p, int events);
+		static void server_callback(pollable_type * p, int events);
+		static void event_callback(pollable_type * p, int events);
+		void on_server(socket_type * s, int events);
+		void on_client(socket_type * s, int events);
+		void on_event(event_type * e, int events);
 	public:
 		server_type();
 		~server_type();
 		void startup_threads();
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads = 4);
-		std::shared_ptr<client_type> thread_wait();
-		void thread_return(std::shared_ptr<client_type> client);
-		void thread_withdraw();
+		void process();
 	private:
+		void remove_client(std::shared_ptr<client_type> client);
 		typedef bool (server_type::*api_function_type)(client_type * client);
 		struct api_info
 		{
