@@ -53,25 +53,26 @@ namespace rediscpp
 		std::string string_value;
 	public:
 		string_type(const std::string & string_value_, const timeval_type & current);
+		string_type(std::string && string_value_, const timeval_type & current);
 		virtual ~string_type(){}
 		virtual std::string get_type() { return std::string("string"); }
 		const std::string & get();
+		void set(const std::string & str)
+		{
+			string_value = str;
+		}
 		int64_t append(const std::string & str)
 		{
 			string_value += str;
 			return string_value.size();
 		}
-		int64_t setrange(int64_t offset, const std::string & str)
+		int64_t setrange(size_t offset, const std::string & str)
 		{
-			if (string_value.size() < offset) {
-				string_value.resize(offset);
-				string_value.append(str);
-			} else if (string_value.size() < offset + str.size()) {
-				string_value.resize(offset + str.size());
-				std::copy(str.begin(), str.end(), string_value.begin() + offset);
-			} else {
-				std::copy(str.begin(), str.end(), string_value.begin() + offset);
+			size_t new_size = offset + str.size();
+			if (string_value.size() < new_size) {
+				string_value.resize(new_size);
 			}
+			std::copy(str.begin(), str.end(), string_value.begin() + offset);
 			return string_value.size();
 		}
 	};
@@ -119,6 +120,18 @@ namespace rediscpp
 				return std::shared_ptr<value_interface>();
 			}
 			return value;
+		}
+		std::shared_ptr<string_type> get_string(const std::string & key, const timeval_type & current) const
+		{
+			std::shared_ptr<value_interface> val = get(key, current);
+			if (!val) {
+				return std::shared_ptr<string_type>();
+			}
+			std::shared_ptr<string_type> str = std::dynamic_pointer_cast<string_type>(val);
+			if (!str) {
+				throw std::runtime_error("ERR type mismatch");
+			}
+			return str;
 		}
 		bool erase(const std::string & key, const timeval_type & current)
 		{

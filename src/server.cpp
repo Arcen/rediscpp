@@ -523,15 +523,17 @@ namespace rediscpp
 					throw std::runtime_error("ERR syntax error");
 				}
 				for (size_t s = 0; s < star_count; ++s) {
-					switch (info.arg_types[arg_pos-s-1]) {
+					switch (info.arg_types[arg_pos+s-star_count]) {
 					case 'k':
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
-							keys.push_back(&arguments[arg_pos]);
+							keys.push_back(&arguments[pos]);
+							//lprintf(__FILE__, __LINE__, info_level, "set key %s", arguments[pos].c_str());
 						}
 						break;
 					case 'v':
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
-							values.push_back(&arguments[arg_pos]);
+							values.push_back(&arguments[pos]);
+							//lprintf(__FILE__, __LINE__, info_level, "set value %s", arguments[pos].c_str());
 						}
 						break;
 					default:
@@ -603,10 +605,10 @@ namespace rediscpp
 		api_map["GETRANGE"].set(&server_type::api_getrange).argc(4).type("ckii");
 		api_map["SUBSTR"].set(&server_type::api_getrange).argc(4).type("ckii");//aka GETRANGE
 		api_map["SETRANGE"].set(&server_type::api_setrange).argc(4).type("ckiv");
-		/*
 		api_map["GETSET"].set(&server_type::api_getset).argc(3).type("ckv");
 		api_map["MGET"].set(&server_type::api_mget).argc_gte(2).type("ck*");
 		api_map["MSET"].set(&server_type::api_mset).argc_gte(3).type("ckv**");
+		/*
 		api_map["MSETNX"].set(&server_type::api_msetnx).argc_gte(3).type("ckv**");
 		api_map["DECR"].set(&server_type::api_decr).argc(2).type("ck");
 		api_map["DECRBY"].set(&server_type::api_decrby).argc(3).type("cki");
