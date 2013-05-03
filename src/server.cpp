@@ -509,11 +509,11 @@ namespace rediscpp
 			}
 			if (arg_pos < argc) {
 				size_t star_count = 0;
-				for (size_t i = arg_pos; arg_pos < pattern_length; ++i) {
+				for (size_t i = arg_pos; i < pattern_length; ++i) {
 					if (info.arg_types[i] == '*') {
 						++star_count;
 					} else {
-						throw std::runtime_error("ERR syntax error");
+						throw std::runtime_error("ERR syntax error too few arguments");
 					}
 				}
 				if (!star_count || arg_pos < star_count) {
@@ -523,7 +523,7 @@ namespace rediscpp
 					throw std::runtime_error("ERR syntax error");
 				}
 				for (size_t s = 0; s < star_count; ++s) {
-					switch (info.arg_types[arg_pos-s]) {
+					switch (info.arg_types[arg_pos-s-1]) {
 					case 'k':
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
 							keys.push_back(&arguments[arg_pos]);
@@ -580,7 +580,7 @@ namespace rediscpp
 		//MIGRATE, RESTORE
 		//SORT
 		api_map["KEYS"].set(&server_type::api_keys).argc(2).type("cp");
-		api_map["DEL"].set(&server_type::api_del).argc(2).type("ck");
+		api_map["DEL"].set(&server_type::api_del).argc_gte(2).type("ck*");
 		api_map["EXISTS"].set(&server_type::api_exists).argc(2).type("ck");
 		api_map["EXPIRE"].set(&server_type::api_expire).argc(3).type("ckt");
 		api_map["EXPIREAT"].set(&server_type::api_expireat).argc(3).type("ckt");

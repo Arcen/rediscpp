@@ -270,8 +270,10 @@ namespace rediscpp
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse();
-		arguments_type & get_arguments() { return arguments; }
-		std::string & get_argument(int index) { return arguments[index]; }
+		const arguments_type & get_arguments() const { return arguments; }
+		const std::string & get_argument(int index) const { return arguments[index]; }
+		const std::vector<std::string*> & get_keys() const { return keys; }
+		const std::vector<std::string*> & get_values() const { return values; }
 		void response_status(const std::string & state);
 		void response_error(const std::string & state);
 		void response_ok();
