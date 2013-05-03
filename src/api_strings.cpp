@@ -182,7 +182,7 @@ namespace rediscpp
 	static int64_t str_pos_fix(int64_t pos, const std::string & str)
 	{
 		if (pos < 0) {
-			pos = 1 - pos;
+			pos = - pos;
 			if (str.size() < pos) {
 				return 0;
 			} else {
@@ -211,7 +211,7 @@ namespace rediscpp
 		}
 		auto & strval = str->get();
 		int64_t start = str_pos_fix(atoi64(client->get_argument(2)), strval);
-		int64_t end = str_pos_fix(atoi64(client->get_argument(3)), strval);
+		int64_t end = std::min<int64_t>(strval.size(), str_pos_fix(atoi64(client->get_argument(3)), strval) + 1);
 		if (end <= start) {
 			client->response_null();
 		} else {
