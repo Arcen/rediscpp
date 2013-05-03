@@ -57,10 +57,8 @@ namespace rediscpp
 		virtual ~string_type(){}
 		virtual std::string get_type() { return std::string("string"); }
 		const std::string & get();
-		void set(const std::string & str)
-		{
-			string_value = str;
-		}
+		std::string & ref() { return string_value; }
+		void set(const std::string & str) { string_value = str; }
 		int64_t append(const std::string & str)
 		{
 			string_value += str;
@@ -298,7 +296,7 @@ namespace rediscpp
 		void response_bulk(const std::string & bulk, bool not_null = true);
 		void response_null();
 		void response_null_multi_bulk();
-		void response_start_multi_bulk(int count);
+		void response_start_multi_bulk(size_t count);
 		void response_raw(const std::string & raw);
 		void flush();
 		void close_after_send() { client->close_after_send(); }
@@ -363,6 +361,7 @@ namespace rediscpp
 		std::vector<std::shared_ptr<worker_type>> thread_pool;
 		sync_queue<std::shared_ptr<job_type>> jobs;
 		bool shutdown;
+		std::vector<uint8_t> bits_table;
 		static void client_callback(pollable_type * p, int events);
 		static void server_callback(pollable_type * p, int events);
 		static void event_callback(pollable_type * p, int events);
@@ -439,6 +438,7 @@ namespace rediscpp
 		bool api_decrby(client_type * client);
 		bool api_incr(client_type * client);
 		bool api_incrby(client_type * client);
+		bool api_incrdecr_internal(client_type * client, int64_t count);
 		bool api_incrbyfloat(client_type * client);
 		bool api_bitcount(client_type * client);
 		bool api_bitop(client_type * client);

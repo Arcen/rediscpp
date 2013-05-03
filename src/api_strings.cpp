@@ -280,18 +280,18 @@ namespace rediscpp
 		client->response_start_multi_bulk(keys.size());
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
 			auto & key = **it;
-			try {
-				auto value = db->get_string(key, current);
-				if (!value) {
-					client->response_null();
-				} else {
-					client->response_bulk(value->get());
-				}
-			} catch (...) {
+			auto value = std::dynamic_pointer_cast<string_type>(db->get(key, current));
+			if (!value) {
 				client->response_null();
+			} else {
+				client->response_bulk(value->get());
 			}
 		}
 	}
+	///複数の値を設定する
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@note Available since 1.0.1.
 	bool server_type::api_mset(client_type * client)
 	{
 		auto db = writable_db(client);
@@ -306,14 +306,361 @@ namespace rediscpp
 		}
 		client->response_ok();
 	}
-	bool api_msetnx(client_type * client);
-	bool api_decr(client_type * client);
-	bool api_decrby(client_type * client);
-	bool api_incr(client_type * client);
-	bool api_incrby(client_type * client);
-	bool api_incrbyfloat(client_type * client);
-	bool api_bitcount(client_type * client);
-	bool api_bitop(client_type * client);
-	bool api_getbit(client_type * client);
-	bool api_setbit(client_type * client);
+	///複数の値がすべて存在しない場合に設定する
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@note 他の型の値があると設定しない
+	///@note Available since 1.0.1.
+	bool server_type::api_msetnx(client_type * client)
+	{
+		auto db = writable_db(client);
+		auto & keys = client->get_keys();
+		auto & values = client->get_values();
+		auto current = client->get_time();
+		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
+			auto & key = **it;
+			if (db->get(key, current)) {
+				client->response_integer0();
+				return true;
+			}
+		}
+		for (auto kit = keys.begin(), kend = keys.end(), vit = values.begin(), vend = values.end(); kit != kend && vit != vend; ++kit, ++vit) {
+			auto & key = **kit;
+			auto & value = **vit;
+			std::shared_ptr<string_type> str(new string_type(value, current));
+			db->replace(key, str);
+		}
+		client->response_integer1();
+		return true;
+	}
+	///1減らす
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@return 演算結果
+	///@note 文字列型でないか、int64_tの範囲内でないか、演算結果がオーバーフローする場合にはエラーを返す
+	///@note Available since 1.0.0.
+	bool server_type::api_decr(client_type * client)
+	{
+		return api_incrdecr_internal(client, -1);
+	}
+	///1増やす
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@return 演算結果
+	///@note 文字列型でないか、int64_tの範囲内でないか、演算結果がオーバーフローする場合にはエラーを返す
+	///@note Available since 1.0.0.
+	bool server_type::api_incr(client_type * client)
+	{
+		return api_incrdecr_internal(client, 1);
+	}
+	///指定量減らす
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@param[in] decrement 減らす量
+	///@return 演算結果
+	///@note 文字列型でないか、int64_tの範囲内でないか、演算結果がオーバーフローする場合にはエラーを返す
+	///@note 最小値を減らそうとすると、オーバーフローするのでエラーとする
+	///@note Available since 1.0.0.
+	bool server_type::api_decrby(client_type * client)
+	{
+		auto & count = client->get_argument(2);
+		bool is_valid = true;
+		int64_t intval = atoi64(count, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR decrement is not valid integer");
+		}
+		if (intval == std::numeric_limits<int64_t>::min()) {
+			throw std::runtime_error("ERR decrement is out of range");
+		}
+		return api_incrdecr_internal(client, -intval);
+	}
+	///指定量増やす
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@param[in] increment 増やす量
+	///@return 演算結果
+	///@note 文字列型でないか、int64_tの範囲内でないか、演算結果がオーバーフローする場合にはエラーを返す
+	///@note Available since 1.0.0.
+	bool server_type::api_incrby(client_type * client)
+	{
+		auto & count = client->get_argument(2);
+		bool is_valid = true;
+		int64_t intval = atoi64(count, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR increment is not valid integer");
+		}
+		return api_incrdecr_internal(client, intval);
+	}
+	///加減算を実行する
+	bool server_type::api_incrdecr_internal(client_type * client, int64_t count)
+	{
+		auto db = writable_db(client);
+		auto & key = client->get_argument(1);
+		auto current = client->get_time();
+		bool is_valid = true;
+		auto value = db->get_string(key, current);
+		int64_t newval = count;
+		if (value) {
+			int64_t oldval = atoi64(value->get(), is_valid);
+			if (!is_valid) {
+				throw std::runtime_error("ERR not valid integer");
+			}
+			if (count < 0) {
+				if (oldval < oldval + count) {
+					throw std::runtime_error("ERR underflow");
+				}
+			} else if (0 < count) {
+				if (oldval + count < oldval) {
+					throw std::runtime_error("ERR overflow");
+				}
+			}
+			newval += oldval;
+		}
+		std::shared_ptr<string_type> str(new string_type(format("%"PRId64, newval), current));
+		db->replace(key, str);
+		client->response_integer(newval);
+		return true;
+	}
+	///浮動小数点演算で加算する
+	///@param[in] key キー名
+	///@param[in] value 値
+	///@param[in] increment 増やす量
+	///@return 演算結果
+	///@note 文字列型でないか、long doubleの範囲内でないか、演算結果が非有限・非数になる場合にはエラーを返す
+	///@note Available since 1.0.0.
+	bool server_type::api_incrbyfloat(client_type * client)
+	{
+		auto db = writable_db(client);
+		auto & key = client->get_argument(1);
+		auto current = client->get_time();
+		auto value = db->get_string(key, current);
+		auto & increment = client->get_argument(2);
+		bool is_valid = true;
+		long double count = atold(increment, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR increment is not valid float");
+		}
+		long double newval = count;
+		if (value) {
+			long double oldval = atold(value->get(), is_valid);
+			if (!is_valid) {
+				throw std::runtime_error("ERR not valid float");
+			}
+			newval = count + oldval;
+			if (isnanl(newval) || isinfl(newval)) {
+				throw std::runtime_error("ERR result is not finite");
+			}
+		}
+		std::string newstr = format("%Lg", newval);
+		std::shared_ptr<string_type> str(new string_type(newstr, current));
+		db->replace(key, str);
+		client->response_bulk(newstr);
+		return true;
+	}
+	///範囲内のビット数を計算する
+	///@param[in] key キー名
+	///@param[in] start 開始位置(省略可能)
+	///@param[in] end 終了位置(省略可能)
+	///@note Available since 2.6.0.
+	bool server_type::api_bitcount(client_type * client)
+	{
+		auto & key = client->get_argument(1);
+		auto current = client->get_time();
+		auto db = readable_db(client);
+		auto value = db->get_string(key, current);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		auto & string = value->get();
+		auto & arguments = client->get_arguments();
+		int64_t start = str_pos_fix(arguments.size() < 3 ? 0 : atoi64(client->get_argument(2)), string);
+		int64_t end = std::min<int64_t>(string.size(), str_pos_fix(arguments.size() < 4 ? -1 : atoi64(client->get_argument(3)), string) + 1);
+		if (end <= start) {
+			client->response_integer0();
+		} else {
+			int64_t count = 0;
+			for (auto it = string.begin() + start, send = string.begin() + end; it != send; ++it) {
+				count += bits_table[static_cast<uint8_t>(*it)];
+			}
+			client->response_integer(count);
+		}
+		return true;
+	}
+	///ビット演算を行って、指定のキーに出力する
+	///@param[in] operation 演算
+	///@param[in] destkey 出力先キー名
+	///@param[in] key キー名
+	///@note 応答は最大の値のサイズ。キーの最大サイズが0の場合には出力先は削除と同じ状態となる。
+	///@note Available since 2.6.0.
+	bool server_type::api_bitop(client_type * client)
+	{
+		auto operation = client->get_argument(1);
+		std::transform(operation.begin(), operation.end(), operation.begin(), toupper);
+		if (operation != "AND" && operation != "OR" && operation != "XOR" && operation != "NOT") {
+			throw std::runtime_error("ERR operation is invalid");
+		}
+		auto & destkey = client->get_argument(2);
+		auto & keys = client->get_keys();
+		if (operation == "NOT" && keys.size() != 2) {
+			throw std::runtime_error("ERR not operation require single key");
+		}
+		auto current = client->get_time();
+		auto db = writable_db(client);
+		std::vector<const std::string*> srcvalues;
+		srcvalues.reserve(keys.size() - 1);
+		size_t min_size = std::numeric_limits<size_t>::max();
+		size_t max_size = 0;
+		for (auto it = keys.begin() + 1, end = keys.end(); it != end; ++it) {
+			auto & key = **it;
+			auto srcvalue = db->get_string(key, current);
+			if (srcvalue) {
+				srcvalues.push_back(&srcvalue->ref());
+				size_t size = srcvalue->get().size();
+				min_size = std::min(min_size, size);
+				max_size = std::max(max_size, size);
+			} else {
+				min_size = 0;
+			}
+		}
+		std::string deststrval(max_size, '\0');
+		if (operation == "NOT") {
+			if (!srcvalues.empty()) {
+				auto & src = **srcvalues.begin();
+				auto dit = deststrval.begin();
+				for (auto it = src.begin(), end = src.end(); it != end; ++it, ++dit) {
+					*dit = ~ *it;
+				}
+			}
+		} else {
+			if (!srcvalues.empty()) {
+				if (operation == "AND") {
+					auto sit = srcvalues.begin();
+					std::copy((**sit).begin(), (**sit).begin() + min_size, deststrval.begin());
+					++sit;
+					for (auto send = srcvalues.end(); sit != send; ++sit) {
+						auto & src = **sit;
+						auto dit = deststrval.begin();
+						for (auto it = src.begin(), end = src.begin() + min_size; it != end; ++it, ++dit) {
+							*dit &= *it;
+						}
+					}
+				} else if (operation == "OR") {
+					auto sit = srcvalues.begin();
+					std::copy((**sit).begin(), (**sit).end(), deststrval.begin());
+					++sit;
+					for (auto send = srcvalues.end(); sit != send; ++sit) {
+						auto & src = **sit;
+						auto dit = deststrval.begin();
+						for (auto it = src.begin(), end = src.end(); it != end; ++it, ++dit) {
+							*dit |= *it;
+						}
+					}
+				} else if (operation == "XOR") {
+					auto sit = srcvalues.begin();
+					std::copy((**sit).begin(), (**sit).end(), deststrval.begin());
+					++sit;
+					for (auto send = srcvalues.end(); sit != send; ++sit) {
+						auto & src = **sit;
+						auto dit = deststrval.begin();
+						for (auto it = src.begin(), end = src.end(); it != end; ++it, ++dit) {
+							*dit ^= *it;
+						}
+					}
+				}
+			}
+		}
+		if (max_size == 0) {
+			db->erase(destkey, current);
+		} else {
+			std::shared_ptr<string_type> str(new string_type(deststrval, current));
+			db->replace(destkey, str);
+		}
+		client->response_integer(max_size);
+		return true;
+	}
+	///指定位置のビットを取得する
+	///@param[in] key キー名
+	///@param[in] offset 位置
+	///@note Available since 2.2.0.
+	bool server_type::api_getbit(client_type * client)
+	{
+		auto & key = client->get_argument(1);
+		int64_t offset = atoi64(client->get_argument(2));
+		if (offset < 0) {
+			throw std::runtime_error("ERR offset is out of range");
+		}
+		auto current = client->get_time();
+		auto db = readable_db(client);
+		auto value = db->get_string(key, current);
+		if (!value.get()) {
+			client->response_integer0();
+			return true;
+		}
+		auto & string = value->get();
+		int64_t offset_byte = offset / 8;
+		if (string.size() <= offset_byte) {
+			client->response_integer0();
+			return true;
+		}
+		uint8_t target_value = static_cast<uint8_t>(string[offset_byte]);
+		int64_t offset_bit = offset % 8;
+		if (target_value & (0x80 >> offset_bit)) {
+			client->response_integer1();
+		} else {
+			client->response_integer0();
+		}
+		return true;
+	}
+	///指定位置のビットを設定する
+	///@param[in] key キー名
+	///@param[in] offset 位置
+	///@note 以前のビットを返す
+	///@note Available since 2.2.0.
+	bool server_type::api_setbit(client_type * client)
+	{
+		auto & key = client->get_argument(1);
+		int64_t offset = atoi64(client->get_argument(2));
+		if (offset < 0) {
+			throw std::runtime_error("ERR offset is out of range");
+		}
+		int64_t set = atoi64(client->get_argument(3));
+		if (set != 1 && set != 0) {
+			throw std::runtime_error("ERR bit is invalid");
+		}
+		auto current = client->get_time();
+		auto db = writable_db(client);
+		auto value = db->get_string(key, current);
+		int64_t offset_byte = offset / 8;
+		int64_t offset_bit = offset % 8;
+		if (!value.get()) {
+			std::string string(offset_byte + 1, '\0');
+			if (set) {
+				*string.rbegin() = static_cast<char>(0x80 >> offset_bit);
+			}
+			std::shared_ptr<string_type> str(new string_type(string, current));
+			db->replace(key, str);
+			client->response_integer0();
+			return true;
+		}
+		auto & string = value->ref();
+		if (string.size() <= offset_byte) {
+			string.resize(offset_byte + 1, '\0');
+		}
+		char target_bit = static_cast<char>(0x80 >> offset_bit);
+		char & target_byte = string[offset_byte];
+		char old = target_byte & target_bit;
+		if (set) {
+			target_byte |= target_bit;
+		} else {
+			target_byte &= ~target_bit;
+		}
+		value->update(current);
+		if (old) {
+			client->response_integer1();
+		} else {
+			client->response_integer0();
+		}
+		return true;
+	}
 }

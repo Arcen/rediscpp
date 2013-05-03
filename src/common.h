@@ -17,7 +17,10 @@
 #include <exception>
 #include <stdexcept>
 #include <limits>
+#include <algorithm>
 #include <stdarg.h>
+#include <inttypes.h>
+#include <math.h>
 
 namespace rediscpp
 {
@@ -47,6 +50,32 @@ namespace rediscpp
 	inline int64_t atoi64(const std::string & str)
 	{
 		return strtoll(str.c_str(), NULL, 10);
+	}
+	inline int64_t atoi64(const std::string & str, bool & is_valid)
+	{
+		if (str.empty()) {
+			is_valid = false;
+			return 0;
+		}
+		char * endptr = NULL;
+		errno = 0;
+		int64_t result = strtoll(str.c_str(), &endptr, 10);
+		const char * end = str.c_str() + str.size();
+		is_valid = (endptr == end && errno == 0);
+		return result;
+	}
+	inline long double atold(const std::string & str, bool & is_valid)
+	{
+		if (str.empty()) {
+			is_valid = false;
+			return 0;
+		}
+		char * endptr = NULL;
+		errno = 0;
+		long double result = strtold(str.c_str(), &endptr);
+		const char * end = str.c_str() + str.size();
+		is_valid = (endptr == end && errno == 0);
+		return result;
 	}
 	bool pattern_match(const std::string & pattern, const std::string & target, bool nocase = false);
 };

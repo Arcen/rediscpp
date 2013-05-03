@@ -15,6 +15,16 @@ namespace rediscpp
 			it->reset(new database_type());
 		}
 		build_api_map();
+		bits_table.resize(256);
+		for (int i = 0; i < 256; ++i) {
+			int count = 0;
+			for (int j = 0; j < 8; ++j) {
+				if (i & (1 << j)) {
+					++count;
+				}
+			}
+			bits_table[i] = count;
+		}
 	}
 	client_type::client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_)
 		: server(server_)
@@ -355,12 +365,12 @@ namespace rediscpp
 	}
 	void client_type::response_integer(int64_t value)
 	{
-		response_raw(format(":%d\r\n", value));
+		response_raw(format(":%"PRId64"\r\n", value));
 	}
 	void client_type::response_bulk(const std::string & bulk, bool not_null)
 	{
 		if (not_null) {
-			response_raw(format("$%d\r\n", bulk.size()));
+			response_raw(format("$%zd\r\n", bulk.size()));
 			response_raw(bulk);
 			response_raw("\r\n");
 		} else {
@@ -375,9 +385,9 @@ namespace rediscpp
 	{
 		response_raw("*-1\r\n");
 	}
-	void client_type::response_start_multi_bulk(int count)
+	void client_type::response_start_multi_bulk(size_t count)
 	{
-		response_raw(format("*%d\r\n", count));
+		response_raw(format("*%zd\r\n", count));
 	}
 	void client_type::response_raw(const std::string & raw)
 	{
@@ -608,7 +618,6 @@ namespace rediscpp
 		api_map["GETSET"].set(&server_type::api_getset).argc(3).type("ckv");
 		api_map["MGET"].set(&server_type::api_mget).argc_gte(2).type("ck*");
 		api_map["MSET"].set(&server_type::api_mset).argc_gte(3).type("ckv**");
-		/*
 		api_map["MSETNX"].set(&server_type::api_msetnx).argc_gte(3).type("ckv**");
 		api_map["DECR"].set(&server_type::api_decr).argc(2).type("ck");
 		api_map["DECRBY"].set(&server_type::api_decrby).argc(3).type("cki");
@@ -619,7 +628,6 @@ namespace rediscpp
 		api_map["BITOP"].set(&server_type::api_bitop).argc_gte(4).type("cskk*");
 		api_map["GETBIT"].set(&server_type::api_getbit).argc(3).type("cki");
 		api_map["SETBIT"].set(&server_type::api_setbit).argc(4).type("ckiv");
-		*/
 	}
 	server_type::~server_type()
 	{
