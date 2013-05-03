@@ -47,7 +47,9 @@ namespace rediscpp
 	bool server_type::api_time(client_type * client)
 	{
 		timeval_type tv = client->get_time();
-		client->response_raw(format("*2\r\n:%d\r\n:%d\r\n", tv.tv_sec, tv.tv_usec));
+		client->response_start_multi_bulk(2);
+		client->response_integer(tv.tv_sec);
+		client->response_integer(tv.tv_usec);
 		return true;
 	}
 }

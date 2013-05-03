@@ -81,6 +81,8 @@ namespace rediscpp
 					throw std::runtime_error("ERR syntax error");
 				}
 				xx = true;
+			} else {
+				throw std::runtime_error("ERR syntax error");
 			}
 		}
 		return api_set_internal(client, key, value, nx, xx, expire);

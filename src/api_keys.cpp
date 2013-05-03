@@ -112,10 +112,10 @@ namespace rediscpp
 				tv.tv_usec = (time % 1000) * 1000;
 			}
 		}
+		//lprintf(__FILE__, __LINE__, info_level, "expire %d.%06d now %d.%06d", tv.tv_sec, tv.tv_usec, current.tv_sec, current.tv_usec);
 		value->expire(tv);
 		db->regist_expiring_key(tv, key);
 		client->response_integer1();
-		//@todo expireするキーのリストを作っておき、それを過ぎたら消すようにしたい
 		return true;
 	}
 	///キーの有効期限消去

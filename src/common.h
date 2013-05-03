@@ -16,6 +16,7 @@
 #include <memory>
 #include <exception>
 #include <stdexcept>
+#include <limits>
 #include <stdarg.h>
 
 namespace rediscpp

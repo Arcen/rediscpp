@@ -267,7 +267,7 @@ namespace rediscpp
 					arguments.resize(argument_count);
 				} else {
 					inline_command_parser(arg_count);
-					if (time_updated) {
+					if (!time_updated) {
 						time_updated = true;
 						current_time.update();
 					}
@@ -308,7 +308,7 @@ namespace rediscpp
 					++argument_index;
 				}
 			} else {
-				if (time_updated) {
+				if (!time_updated) {
 					time_updated = true;
 					current_time.update();
 				}
@@ -447,8 +447,7 @@ namespace rediscpp
 			}
 			auto it = server.api_map.find(command);
 			if (it != server.api_map.end()) {
-				auto info = it->second;
-				return (server.*(info.function))(this);
+				return execute(it->second);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
 		} catch (std::exception & e) {
@@ -460,65 +459,164 @@ namespace rediscpp
 		}
 		return false;
 	}
+	bool client_type::execute(const api_info & info)
+	{
+		//引数確認
+		if (arguments.size() < info.min_argc) {
+			response_error("ERR syntax error too few arguments");
+			return true;
+		}
+		if (info.max_argc < arguments.size()) {
+			response_error("ERR syntax error too much arguments");
+			return true;
+		}
+		try
+		{
+			size_t argc = arguments.size();
+			size_t pattern_length = info.arg_types.size();
+			size_t arg_pos = 0;
+			keys.clear();
+			values.clear();
+			keys.reserve(argc);
+			values.reserve(argc);
+			for (; arg_pos < pattern_length && arg_pos < argc; ++arg_pos) {
+				if (info.arg_types[arg_pos] == '*') {
+					break;
+				}
+				switch (info.arg_types[arg_pos]) {
+				case 'c'://command
+				case 's'://string
+				case 't'://time
+				case 'i'://integer
+				case 'f'://float
+					break;
+				case 'k'://key
+					keys.push_back(&arguments[arg_pos]);
+					break;
+				case 'v'://value
+					values.push_back(&arguments[arg_pos]);
+					break;
+				case 'd'://db index
+					{
+						int64_t index = atoi64(arguments[arg_pos]);
+						if (index < 0 || server.databases.size() <= index) {
+							throw std::runtime_error("ERR db index is wrong range");
+						}
+					}
+					break;
+				}
+			}
+			if (arg_pos < argc) {
+				size_t star_count = 0;
+				for (size_t i = arg_pos; arg_pos < pattern_length; ++i) {
+					if (info.arg_types[i] == '*') {
+						++star_count;
+					} else {
+						throw std::runtime_error("ERR syntax error");
+					}
+				}
+				if (!star_count || arg_pos < star_count) {
+					throw std::runtime_error("ERR command structure error");
+				}
+				if ((argc - arg_pos) % star_count != 0) {
+					throw std::runtime_error("ERR syntax error");
+				}
+				for (size_t s = 0; s < star_count; ++s) {
+					switch (info.arg_types[arg_pos-s]) {
+					case 'k':
+						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
+							keys.push_back(&arguments[arg_pos]);
+						}
+						break;
+					case 'v':
+						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
+							values.push_back(&arguments[arg_pos]);
+						}
+						break;
+					default:
+						throw std::runtime_error("ERR command pattern error");
+					}
+				}
+			}
+			bool result = (server.*(info.function))(this);
+			keys.clear();
+			values.clear();
+			return result;
+		} catch (...) {
+			keys.clear();
+			values.clear();
+			throw;
+		}
+	}
 	void server_type::build_api_map()
 	{
 		//connection API
-		api_map["AUTH"].set(&server_type::api_auth);
-		api_map["ECHO"].set(&server_type::api_echo);
+		api_map["AUTH"].set(&server_type::api_auth).argc(2).type("cs");
+		api_map["ECHO"].set(&server_type::api_echo).argc(2).type("cs");
 		api_map["PING"].set(&server_type::api_ping);
 		api_map["QUIT"].set(&server_type::api_quit);
-		api_map["SELECT"].set(&server_type::api_select);
+		api_map["SELECT"].set(&server_type::api_select).argc(2).type("cd");
 		//serve API
+		//BGREWRITEAOF, BGSAVE, LASTSAVE, SAVE
+		//CLIENT KILL, LIST, GETNAME, SETNAME
+		//CONFIG GET, SET, RESETSTAT
+		//DEBUG OBJECT, SETFAULT
+		//SLAVEOF, SYNC
+		//INFO, MONITOR, SLOWLOG, 
 		api_map["DBSIZE"].set(&server_type::api_dbsize);
 		api_map["FLUSHALL"].set(&server_type::api_flushall);
 		api_map["FLUSHDB"].set(&server_type::api_flushdb);
-		api_map["SHUTDOWN"].set(&server_type::api_shutdown);
+		api_map["SHUTDOWN"].set(&server_type::api_shutdown).argc(1,2).type("cs");
 		api_map["TIME"].set(&server_type::api_time);
 		//transaction API
 		api_map["MULTI"].set(&server_type::api_multi);
 		api_map["EXEC"].set(&server_type::api_exec);
 		api_map["DISCARD"].set(&server_type::api_discard);
-		api_map["WATCH"].set(&server_type::api_watch);
+		api_map["WATCH"].set(&server_type::api_watch).argc_gte(2).type("ck*");
 		api_map["UNWATCH"].set(&server_type::api_unwatch);
 		//keys API
-		api_map["KEYS"].set(&server_type::api_keys);
-		api_map["DEL"].set(&server_type::api_del);
-		api_map["EXISTS"].set(&server_type::api_exists);
-		api_map["EXPIRE"].set(&server_type::api_expire);
-		api_map["EXPIREAT"].set(&server_type::api_expireat);
-		api_map["PERSIST"].set(&server_type::api_persist);
-		api_map["TTL"].set(&server_type::api_ttl);
-		api_map["PTTL"].set(&server_type::api_pttl);
-		api_map["MOVE"].set(&server_type::api_move);
+		//DUMP, OBJECT
+		//MIGRATE, RESTORE
+		//SORT
+		api_map["KEYS"].set(&server_type::api_keys).argc(2).type("cp");
+		api_map["DEL"].set(&server_type::api_del).argc(2).type("ck");
+		api_map["EXISTS"].set(&server_type::api_exists).argc(2).type("ck");
+		api_map["EXPIRE"].set(&server_type::api_expire).argc(3).type("ckt");
+		api_map["EXPIREAT"].set(&server_type::api_expireat).argc(3).type("ckt");
+		api_map["PERSIST"].set(&server_type::api_persist).argc(2).type("ck");
+		api_map["TTL"].set(&server_type::api_ttl).argc(2).type("ck");
+		api_map["PTTL"].set(&server_type::api_pttl).argc(2).type("ck");
+		api_map["MOVE"].set(&server_type::api_move).argc(3).type("ckd");
 		api_map["RANDOMKEY"].set(&server_type::api_randomkey);
-		api_map["RENAME"].set(&server_type::api_rename);
-		api_map["RENAMENX"].set(&server_type::api_renamenx);
-		api_map["TYPE"].set(&server_type::api_type);
+		api_map["RENAME"].set(&server_type::api_rename).argc(3).type("ckk");
+		api_map["RENAMENX"].set(&server_type::api_renamenx).argc(3).type("ckk");
+		api_map["TYPE"].set(&server_type::api_type).argc(2).type("ck");
 		//strings api
-		api_map["GET"].set(&server_type::api_get);
-		api_map["SET"].set(&server_type::api_set);
-		api_map["SETEX"].set(&server_type::api_setex);
-		api_map["SETNX"].set(&server_type::api_setnx);
-		api_map["PSETEX"].set(&server_type::api_psetex);
-		api_map["STRLEN"].set(&server_type::api_strlen);
-		api_map["APPEND"].set(&server_type::api_append);
-		api_map["GETRANGE"].set(&server_type::api_getrange);
-		api_map["SUBSTR"].set(&server_type::api_getrange);
-		api_map["SETRANGE"].set(&server_type::api_setrange);
+		api_map["GET"].set(&server_type::api_get).argc(2).type("ck");
+		api_map["SET"].set(&server_type::api_set).argc(3,8).type("ckvsssss");
+		api_map["SETEX"].set(&server_type::api_setex).argc(4).type("cktv");
+		api_map["SETNX"].set(&server_type::api_setnx).argc(3).type("ckv");
+		api_map["PSETEX"].set(&server_type::api_psetex).argc(4).type("cktv");
+		api_map["STRLEN"].set(&server_type::api_strlen).argc(2).type("ck");
+		api_map["APPEND"].set(&server_type::api_append).argc(3).type("ckv");
+		api_map["GETRANGE"].set(&server_type::api_getrange).argc(4).type("ckii");
+		api_map["SUBSTR"].set(&server_type::api_getrange).argc(4).type("ckii");//aka GETRANGE
+		api_map["SETRANGE"].set(&server_type::api_setrange).argc(4).type("ckiv");
 		/*
-		api_map["GETSET"].set(&server_type::api_getset);
-		api_map["MGET"].set(&server_type::api_mget);
-		api_map["MSET"].set(&server_type::api_mset);
-		api_map["MSETNX"].set(&server_type::api_msetnx);
-		api_map["DECR"].set(&server_type::api_decr);
-		api_map["DECRBY"].set(&server_type::api_decrby);
-		api_map["INCR"].set(&server_type::api_incr);
-		api_map["INCRBY"].set(&server_type::api_incrby);
-		api_map["INCRBYFLOAT"].set(&server_type::api_incrbyfloat);
-		api_map["BITCOUNT"].set(&server_type::api_bitcount);
-		api_map["BITOP"].set(&server_type::api_bitop);
-		api_map["GETBIT"].set(&server_type::api_getbit);
-		api_map["SETBIT"].set(&server_type::api_setbit);*/
+		api_map["GETSET"].set(&server_type::api_getset).argc(3).type("ckv");
+		api_map["MGET"].set(&server_type::api_mget).argc_gte(2).type("ck*");
+		api_map["MSET"].set(&server_type::api_mset).argc_gte(3).type("ckv**");
+		api_map["MSETNX"].set(&server_type::api_msetnx).argc_gte(3).type("ckv**");
+		api_map["DECR"].set(&server_type::api_decr).argc(2).type("ck");
+		api_map["DECRBY"].set(&server_type::api_decrby).argc(3).type("cki");
+		api_map["INCR"].set(&server_type::api_incr).argc(2).type("ck");
+		api_map["INCRBY"].set(&server_type::api_incrby).argc(3).type("cki");
+		api_map["INCRBYFLOAT"].set(&server_type::api_incrbyfloat).argc(3).type("ckf");
+		api_map["BITCOUNT"].set(&server_type::api_bitcount).argc(2,4).type("ckii");
+		api_map["BITOP"].set(&server_type::api_bitop).argc_gte(4).type("cskk*");
+		api_map["GETBIT"].set(&server_type::api_getbit).argc(3).type("cki");
+		api_map["SETBIT"].set(&server_type::api_setbit).argc(4).type("ckiv");
+		*/
 	}
 	server_type::~server_type()
 	{

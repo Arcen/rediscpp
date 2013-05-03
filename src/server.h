@@ -8,6 +8,7 @@
 namespace rediscpp
 {
 	class server_type;
+	class client_type;
 	typedef std::vector<std::string> arguments_type;
 	class value_interface
 	{
@@ -40,7 +41,7 @@ namespace rediscpp
 		{
 			if (is_expiring()) {
 				if (current < expire_time) {
-					return current - expire_time;
+					return expire_time - current;
 				}
 			}
 			return timeval_type(0,0);
@@ -200,12 +201,57 @@ namespace rediscpp
 			}
 		}
 	};
+	typedef bool (server_type::*api_function_type)(client_type * client);
+	struct api_info
+	{
+		api_function_type function;
+		size_t min_argc;
+		size_t max_argc;
+		//c : command, s : string, k : key, v : value, d : db index, t : time, i : integer, f : float
+		std::string arg_types;
+		api_info()
+			: function(NULL)
+			, min_argc(1)
+			, max_argc(1)
+			, arg_types("c")
+		{
+		}
+		api_info & set(api_function_type function_)
+		{
+			function = function_;
+			return *this;
+		}
+		api_info & argc(size_t argc = 1)
+		{
+			min_argc = max_argc = argc;
+			return *this;
+		}
+		api_info & argc(size_t min_argc_, int max_argc_)
+		{
+			min_argc = min_argc_;
+			max_argc = max_argc_;
+			return *this;
+		}
+		api_info & argc_gte(size_t argc = 1)
+		{
+			min_argc = argc;
+			max_argc = std::numeric_limits<size_t>::max();
+			return *this;
+		}
+		api_info & type(const std::string & arg_types_)
+		{
+			arg_types = arg_types_;
+			return *this;
+		}
+	};
 	class client_type
 	{
 		friend class server_type;
 		server_type & server;
 		std::shared_ptr<socket_type> client;
 		arguments_type arguments;
+		std::vector<std::string*> keys;
+		std::vector<std::string*> values;
 		int argument_count;
 		int argument_index;
 		int argument_size;
@@ -262,6 +308,7 @@ namespace rediscpp
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);
 		bool execute();
+		bool execute(const api_info & info);
 	};
 	class worker_type : public thread_type
 	{
@@ -322,19 +369,6 @@ namespace rediscpp
 		}
 	private:
 		void remove_client(std::shared_ptr<client_type> client);
-		typedef bool (server_type::*api_function_type)(client_type * client);
-		struct api_info
-		{
-			api_function_type function;
-			api_info()
-				: function(NULL)
-			{
-			}
-			void set(api_function_type function_)
-			{
-				function = function_;
-			}
-		};
 		std::map<std::string,api_info> api_map;
 		void build_api_map();
 		//connection api
