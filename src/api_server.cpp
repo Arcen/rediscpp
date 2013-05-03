@@ -7,7 +7,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_dbsize(client_type * client)
 	{
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		client->response_integer(db->get_dbsize());
 		return true;
 	}
@@ -26,7 +26,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_flushdb(client_type * client)
 	{
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		db->clear();
 		client->response_ok();
 		return true;

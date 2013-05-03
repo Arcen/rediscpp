@@ -32,12 +32,7 @@ namespace rediscpp
 		if (!client->require_auth(std::string())) {
 			throw std::runtime_error("ERR not required");
 		}
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 2) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & password = arguments[1];
-		if (!client->auth(password)) {
+		if (!client->auth(client->get_argument(1))) {
 			throw std::runtime_error("ERR not match");
 		}
 		client->response_ok();
@@ -48,12 +43,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_echo(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() < 2) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & message = arguments[1];
-		client->response_bulk(message);
+		client->response_bulk(client->get_argument(1));
 		return true;
 	}
 	///Ping
@@ -67,7 +57,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_quit(client_type * client)
 	{
-		client->response_status("OK");
+		client->response_ok();
 		client->close_after_send();
 		return true;
 	}
@@ -76,15 +66,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_select(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 1) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		int index = atoi(arguments[1].c_str());
-		if (index < 0 || databases.size() <= index) {
-			throw std::runtime_error("ERR index out of range");
-		}
-		client->select(index);
+		client->select(atoi64(client->get_argument(1)));
 		client->response_status("OK");
 		return true;
 	}

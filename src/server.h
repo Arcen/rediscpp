@@ -270,6 +270,7 @@ namespace rediscpp
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse();
 		arguments_type & get_arguments() { return arguments; }
+		std::string & get_argument(int index) { return arguments[index]; }
 		void response_status(const std::string & state);
 		void response_error(const std::string & state);
 		void response_ok();
@@ -359,14 +360,10 @@ namespace rediscpp
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
-		database_write_locker writable_db(int index)
-		{
-			return database_write_locker(databases.at(index).get());
-		}
-		database_read_locker readable_db(int index)
-		{
-			return database_read_locker(databases.at(index).get());
-		}
+		database_write_locker writable_db(int index) { return database_write_locker(databases.at(index).get()); }
+		database_read_locker readable_db(int index) { return database_read_locker(databases.at(index).get()); }
+		database_write_locker writable_db(client_type * client) { return writable_db(client->get_db_index()); }
+		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index()); }
 	private:
 		void remove_client(std::shared_ptr<client_type> client);
 		std::map<std::string,api_info> api_map;
