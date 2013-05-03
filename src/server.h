@@ -409,7 +409,7 @@ namespace rediscpp
 		bool api_type(client_type * client);
 		//strings api
 		bool api_get(client_type * client);
-		bool api_set_internal(client_type * client, const std::string & key, const std::string & value, bool nx, bool xx, int64_t expire);
+		bool api_set_internal(client_type * client, bool nx, bool xx, int64_t expire);
 		bool api_set(client_type * client);
 		bool api_setnx(client_type * client);
 		bool api_setex(client_type * client);

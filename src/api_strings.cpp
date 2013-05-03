@@ -16,12 +16,8 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_get(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 2) {
-			throw std::runtime_error("ERR syntax error");
-		}
 		auto db = readable_db(client);
-		auto & key = arguments[1];
+		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto value = db->get(key, current);
 		if (!value.get()) {
@@ -45,17 +41,11 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_set(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		auto size = arguments.size();
-		if (size < 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		auto & value = arguments[2];
 		int64_t expire = -1;//in millisec
 		bool nx = false;
 		bool xx = false;
-		for (int i = 3; i < size; ++i) {
+		auto & arguments = client->get_arguments();
+		for (int i = 3, size = arguments.size(); i < size; ++i) {
 			auto & option = arguments[i];
 			if (option == "EX") {
 				++i;
@@ -85,7 +75,7 @@ namespace rediscpp
 				throw std::runtime_error("ERR syntax error");
 			}
 		}
-		return api_set_internal(client, key, value, nx, xx, expire);
+		return api_set_internal(client, nx, xx, expire);
 	}
 	///設定
 	///@param[in] key キー名
@@ -93,13 +83,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_setnx(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		auto & value = arguments[2];
-		return api_set_internal(client, key, value, true, false, -1);
+		return api_set_internal(client, true, false, -1);
 	}
 	///設定
 	///@param[in] key キー名
@@ -108,14 +92,8 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_setex(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 4) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		int64_t expire = atoi64(arguments[2]) * 1000;
-		auto & value = arguments[3];
-		return api_set_internal(client, key, value, false, false, expire);
+		int64_t expire = atoi64(client->get_argument(2)) * 1000;
+		return api_set_internal(client, false, false, expire);
 	}
 	///設定
 	///@param[in] key キー名
@@ -123,19 +101,15 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_psetex(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 4) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		int64_t expire = atoi64(arguments[2]);
-		auto & value = arguments[3];
-		return api_set_internal(client, key, value, false, false, expire);
+		int64_t expire = atoi64(client->get_argument(2));
+		return api_set_internal(client, false, false, expire);
 	}
-	bool server_type::api_set_internal(client_type * client, const std::string & key, const std::string & value, bool nx, bool xx, int64_t expire)
+	bool server_type::api_set_internal(client_type * client, bool nx, bool xx, int64_t expire)
 	{
 		auto db = writable_db(client);
 		auto current = client->get_time();
+		auto & key = *client->get_keys()[0];
+		auto & value = *client->get_values()[0];
 		if (nx) {//存在を確認する
 			if (db->get(key, current).get()) {
 				client->response_null();
@@ -163,11 +137,7 @@ namespace rediscpp
 	///@note Available since 2.2.0.
 	bool server_type::api_strlen(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() != 2) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
+		auto & key = client->get_argument(1);
 		auto db = readable_db(client);
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -187,13 +157,8 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_append(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		auto size = arguments.size();
-		if (size < 3) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		auto & value = arguments[2];
+		auto & key = client->get_argument(1);
+		auto & value = client->get_argument(2);
 		auto db = writable_db(client);
 		auto current = client->get_time();
 		auto now = db->get(key, current);
@@ -232,11 +197,7 @@ namespace rediscpp
 	}
 	bool server_type::api_getrange(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() < 4) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
+		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto value = db->get(key, current);
@@ -249,8 +210,8 @@ namespace rediscpp
 			throw std::runtime_error("ERR type mismatch");
 		}
 		auto & strval = str->get();
-		int64_t start = str_pos_fix(atoi64(arguments[2]), strval);
-		int64_t end = str_pos_fix(atoi64(arguments[3]), strval);
+		int64_t start = str_pos_fix(atoi64(client->get_argument(2)), strval);
+		int64_t end = str_pos_fix(atoi64(client->get_argument(3)), strval);
 		if (end <= start) {
 			client->response_null();
 		} else {
@@ -260,16 +221,12 @@ namespace rediscpp
 	}
 	bool server_type::api_setrange(client_type * client)
 	{
-		auto & arguments = client->get_arguments();
-		if (arguments.size() < 4) {
-			throw std::runtime_error("ERR syntax error");
-		}
-		auto & key = arguments[1];
-		int64_t offset = atoi64(arguments[2]);
+		auto & key = client->get_argument(1);
+		int64_t offset = atoi64(client->get_argument(2));
 		if (offset < 0) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto & newstr = arguments[3];
+		auto & newstr = client->get_argument(3);
 		auto current = client->get_time();
 		auto db = writable_db(client);
 		auto now = db->get(key, current);
