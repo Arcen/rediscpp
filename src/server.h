@@ -445,9 +445,69 @@ namespace rediscpp
 		bool api_getbit(client_type * client);
 		bool api_setbit(client_type * client);
 		//lists api
+		bool api_blpop(client_type * client);
+		bool api_brpop(client_type * client);
+		bool api_brpoplpush(client_type * client);
+		bool api_lindex(client_type * client);
+		bool api_linsert(client_type * client);
+		bool api_llen(client_type * client);
+		bool api_lpop(client_type * client);
+		bool api_lpush(client_type * client);
+		bool api_lpushx(client_type * client);
+		bool api_lrange(client_type * client);
+		bool api_lrem(client_type * client);
+		bool api_lset(client_type * client);
+		bool api_ltrim(client_type * client);
+		bool api_rpop(client_type * client);
+		bool api_rpoplpush(client_type * client);
+		bool api_rpush(client_type * client);
+		bool api_rpushx(client_type * client);
 		//hashes api
+		bool api_hdel(client_type * client);
+		bool api_hexists(client_type * client);
+		bool api_hget(client_type * client);
+		bool api_hgetall(client_type * client);
+		bool api_hincrby(client_type * client);
+		bool api_hincrbyfloat(client_type * client);
+		bool api_hkeys(client_type * client);
+		bool api_hlen(client_type * client);
+		bool api_hmget(client_type * client);
+		bool api_hmset(client_type * client);
+		bool api_hset(client_type * client);
+		bool api_hsetnx(client_type * client);
+		bool api_hvals(client_type * client);
 		//sets api
+		bool api_sadd(client_type * client);
+		bool api_scard(client_type * client);
+		bool api_sdiff(client_type * client);
+		bool api_sdiffstore(client_type * client);
+		bool api_sinter(client_type * client);
+		bool api_sinterstore(client_type * client);
+		bool api_sismember(client_type * client);
+		bool api_smembers(client_type * client);
+		bool api_smove(client_type * client);
+		bool api_spop(client_type * client);
+		bool api_srandmember(client_type * client);
+		bool api_srem(client_type * client);
+		bool api_sunion(client_type * client);
+		bool api_sunionstore(client_type * client);
 		//sorted sets api
+		bool api_zadd(client_type * client);
+		bool api_zcard(client_type * client);
+		bool api_zcount(client_type * client);
+		bool api_zincrby(client_type * client);
+		bool api_zinterstore(client_type * client);
+		bool api_zrange(client_type * client);
+		bool api_zrangebystore(client_type * client);
+		bool api_zrank(client_type * client);
+		bool api_zrem(client_type * client);
+		bool api_zremrangebyrank(client_type * client);
+		bool api_zremrangebyscore(client_type * client);
+		bool api_zrevrange(client_type * client);
+		bool api_zrevrangebyscore(client_type * client);
+		bool api_zrevrank(client_type * client);
+		bool api_zscore(client_type * client);
+		bool api_zunionstore(client_type * client);
 	};
 }
 
