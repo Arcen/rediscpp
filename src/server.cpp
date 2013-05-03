@@ -25,6 +25,7 @@ namespace rediscpp
 		, password(password_)
 		, db_index(0)
 		, transaction(false)
+		, multi_executing(false)
 		, current_time(0, 0)
 	{
 		write_cache.reserve(1500);
@@ -71,7 +72,7 @@ namespace rediscpp
 				{
 					timeval_type tv;
 					for (int i = 0, n = databases.size(); i < n; ++i) {
-						auto db = writable_db(i);
+						auto db = writable_db(i, NULL);
 						db->flush_expiring_key(tv);
 					}
 				}
@@ -672,14 +673,14 @@ namespace rediscpp
 	{
 		server.process();
 	}
-	database_write_locker::database_write_locker(database_type * database_)
+	database_write_locker::database_write_locker(database_type * database_, client_type * client)
 		: database(database_)
-		, locker(new rwlock_locker(database_->rwlock, write_lock_type))
+		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : write_lock_type))
 	{
 	}
-	database_read_locker::database_read_locker(database_type * database_)
+	database_read_locker::database_read_locker(database_type * database_, client_type * client)
 		: database(database_)
-		, locker(new rwlock_locker(database_->rwlock, read_lock_type))
+		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : read_lock_type))
 	{
 	}
 }

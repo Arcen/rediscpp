@@ -12,7 +12,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto & pattern = arguments[1];
 		std::unordered_set<std::string> keys;
 		db->match(keys, pattern);
@@ -28,7 +28,7 @@ namespace rediscpp
 	{
 		auto & arguments = client->get_arguments();
 		int64_t removed = 0;
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto current = client->get_time();
 		for (int i = 1, n = arguments.size(); i < n; ++i) {
 			auto & key = arguments[i];
@@ -47,7 +47,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		if (db->get(key, current).get()) {
@@ -87,7 +87,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -126,7 +126,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -156,7 +156,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -190,8 +190,8 @@ namespace rediscpp
 			return 0;
 		}
 		int src_index = client->get_db_index();
-		auto db1 = writable_db(std::min(src_index, dst_index));
-		auto db2 = writable_db(std::max(src_index, dst_index));
+		auto db1 = writable_db(std::min(src_index, dst_index), client);
+		auto db2 = writable_db(std::max(src_index, dst_index), client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		if (src_index < dst_index) {
@@ -236,7 +236,7 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_randomkey(client_type * client)
 	{
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto current = client->get_time();
 		auto value = db->randomkey(current);
 		if (value.empty()) {
@@ -254,7 +254,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -278,7 +278,7 @@ namespace rediscpp
 		if (arguments.size() != 3) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -309,7 +309,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);

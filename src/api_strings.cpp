@@ -20,7 +20,7 @@ namespace rediscpp
 		if (arguments.size() != 2) {
 			throw std::runtime_error("ERR syntax error");
 		}
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto & key = arguments[1];
 		auto current = client->get_time();
 		auto value = db->get(key, current);
@@ -134,7 +134,7 @@ namespace rediscpp
 	}
 	bool server_type::api_set_internal(client_type * client, const std::string & key, const std::string & value, bool nx, bool xx, int64_t expire)
 	{
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto current = client->get_time();
 		if (nx) {//存在を確認する
 			if (db->get(key, current).get()) {
@@ -168,7 +168,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto & key = arguments[1];
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto current = client->get_time();
 		auto value = db->get(key, current);
 		if (!value.get()) {
@@ -194,7 +194,7 @@ namespace rediscpp
 		}
 		auto & key = arguments[1];
 		auto & value = arguments[2];
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto current = client->get_time();
 		auto now = db->get(key, current);
 		if (now.get()) {
@@ -238,7 +238,7 @@ namespace rediscpp
 		}
 		auto & key = arguments[1];
 		auto current = client->get_time();
-		auto db = readable_db(client->get_db_index());
+		auto db = readable_db(client);
 		auto value = db->get(key, current);
 		if (!value.get()) {
 			client->response_null();
@@ -271,7 +271,7 @@ namespace rediscpp
 		}
 		auto & newstr = arguments[3];
 		auto current = client->get_time();
-		auto db = writable_db(client->get_db_index());
+		auto db = writable_db(client);
 		auto now = db->get(key, current);
 		if (now.get()) {
 			std::shared_ptr<string_type> str = std::dynamic_pointer_cast<string_type>(now);

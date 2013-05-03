@@ -16,7 +16,7 @@ namespace rediscpp
 	bool server_type::api_flushall(client_type * client)
 	{
 		for (int i = 0, n = databases.size(); i < n; ++i) {
-			auto db = writable_db(i);
+			auto db = writable_db(i, client);
 			db->clear();
 		}
 		client->response_ok();

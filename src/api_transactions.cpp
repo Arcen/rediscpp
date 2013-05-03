@@ -11,8 +11,13 @@ namespace rediscpp
 	}
 	bool client_type::exec()
 	{
+		multi_executing = true;
 		transaction = false;
 		return true;
+	}
+	bool client_type::in_exec() const
+	{
+		return multi_executing;
 	}
 	bool client_type::queuing(const std::string & command)
 	{
@@ -47,14 +52,18 @@ namespace rediscpp
 	bool server_type::api_exec(client_type * client)
 	{
 		//監視していた値が変更されていないか確認する
-		//@todo マルチスレッドにするには確認しつつ、ロックを取得していく
 		auto & watching = client->get_watching();
 		auto current = client->get_time();
+		//全体ロックを行う
+		std::map<int,std::shared_ptr<database_write_locker>> dbs;
+		for (int i = 0; i < databases.size(); ++i) {
+			dbs[i].reset(new database_write_locker(writable_db(i, client)));
+		}
 		for (auto it = watching.begin(), end = watching.end(); it != end; ++it) {
 			auto & watch = *it;
 			auto key = std::get<0>(watch);
 			auto index = std::get<1>(watch);
-			auto db = readable_db(index);
+			auto & db = *dbs[index];
 			auto value = db->get(key, current);
 			if (!value.get()) {
 				client->response_null_multi_bulk();
@@ -84,6 +93,7 @@ namespace rediscpp
 	{
 		transaction = false;
 		transaction_arguments.clear();
+		multi_executing = false;
 		unwatch();
 	}
 	///トランザクションの中止

@@ -81,7 +81,7 @@ namespace rediscpp
 		database_type * database;
 		std::shared_ptr<rwlock_locker> locker;
 	public:
-		database_write_locker(database_type * database_);
+		database_write_locker(database_type * database_, client_type * client);
 		database_type * get() { return database; }
 		database_type * operator->() { return database; }
 	};
@@ -90,7 +90,7 @@ namespace rediscpp
 		database_type * database;
 		std::shared_ptr<rwlock_locker> locker;
 	public:
-		database_read_locker(database_type * database_);
+		database_read_locker(database_type * database_, client_type * client);
 		const database_type * get() { return database; }
 		const database_type * operator->() { return database; }
 	};
@@ -260,6 +260,7 @@ namespace rediscpp
 		static const int argument_is_undefined = -2;
 		int db_index;
 		bool transaction;
+		bool multi_executing;
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
 		std::vector<uint8_t> write_cache;
@@ -293,7 +294,7 @@ namespace rediscpp
 		bool multi();
 		bool exec();
 		void discard();
-		bool in_transaction() { return transaction; }
+		bool in_exec() const;
 		bool queuing(const std::string & command);
 		void unwatch() { watching.clear(); }
 		void watch(const std::string & key);
@@ -360,10 +361,10 @@ namespace rediscpp
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
-		database_write_locker writable_db(int index) { return database_write_locker(databases.at(index).get()); }
-		database_read_locker readable_db(int index) { return database_read_locker(databases.at(index).get()); }
-		database_write_locker writable_db(client_type * client) { return writable_db(client->get_db_index()); }
-		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index()); }
+		database_write_locker writable_db(int index, client_type * client) { return database_write_locker(databases.at(index).get(), client); }
+		database_read_locker readable_db(int index, client_type * client) { return database_read_locker(databases.at(index).get(), client); }
+		database_write_locker writable_db(client_type * client) { return writable_db(client->get_db_index(), client); }
+		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index(), client); }
 	private:
 		void remove_client(std::shared_ptr<client_type> client);
 		std::map<std::string,api_info> api_map;
