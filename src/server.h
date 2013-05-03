@@ -444,6 +444,10 @@ namespace rediscpp
 		bool api_bitop(client_type * client);
 		bool api_getbit(client_type * client);
 		bool api_setbit(client_type * client);
+		//lists api
+		//hashes api
+		//sets api
+		//sorted sets api
 	};
 }
 
