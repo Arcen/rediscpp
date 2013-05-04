@@ -375,6 +375,43 @@ namespace rediscpp
 		}
 		return api_incrdecr_internal(client, intval);
 	}
+	int64_t server_type::incrby(const std::string & value, int64_t count)
+	{
+		bool is_valid;
+		int64_t newval = count;
+		int64_t oldval = atoi64(value, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR not valid integer");
+		}
+		if (count < 0) {
+			if (oldval < oldval + count) {
+				throw std::runtime_error("ERR underflow");
+			}
+		} else if (0 < count) {
+			if (oldval + count < oldval) {
+				throw std::runtime_error("ERR overflow");
+			}
+		}
+		return newval + oldval;
+	}
+	std::string server_type::incrbyfloat(const std::string & value, const std::string & increment)
+	{
+		bool is_valid;
+		long double count = atold(increment, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR increment is not valid float");
+		}
+		long double newval = count;
+		long double oldval = atold(value, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("ERR not valid float");
+		}
+		newval = count + oldval;
+		if (isnanl(newval) || isinfl(newval)) {
+			throw std::runtime_error("ERR result is not finite");
+		}
+		return format("%Lg", newval);
+	}
 	///加減算を実行する
 	bool server_type::api_incrdecr_internal(client_type * client, int64_t count)
 	{
@@ -383,23 +420,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		bool is_valid = true;
 		auto value = db->get_string(key, current);
-		int64_t newval = count;
-		if (value) {
-			int64_t oldval = atoi64(value->get(), is_valid);
-			if (!is_valid) {
-				throw std::runtime_error("ERR not valid integer");
-			}
-			if (count < 0) {
-				if (oldval < oldval + count) {
-					throw std::runtime_error("ERR underflow");
-				}
-			} else if (0 < count) {
-				if (oldval + count < oldval) {
-					throw std::runtime_error("ERR overflow");
-				}
-			}
-			newval += oldval;
-		}
+		int64_t newval = incrby(value ? value->get() : "0", count);
 		std::shared_ptr<string_type> str(new string_type(format("%"PRId64, newval), current));
 		db->replace(key, str);
 		client->response_integer(newval);
@@ -419,23 +440,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto value = db->get_string(key, current);
 		auto & increment = client->get_argument(2);
-		bool is_valid = true;
-		long double count = atold(increment, is_valid);
-		if (!is_valid) {
-			throw std::runtime_error("ERR increment is not valid float");
-		}
-		long double newval = count;
-		if (value) {
-			long double oldval = atold(value->get(), is_valid);
-			if (!is_valid) {
-				throw std::runtime_error("ERR not valid float");
-			}
-			newval = count + oldval;
-			if (isnanl(newval) || isinfl(newval)) {
-				throw std::runtime_error("ERR result is not finite");
-			}
-		}
-		std::string newstr = format("%Lg", newval);
+		std::string newstr = incrbyfloat(value ? value->get() : "0", increment);
 		std::shared_ptr<string_type> str(new string_type(newstr, current));
 		db->replace(key, str);
 		client->response_bulk(newstr);

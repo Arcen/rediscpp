@@ -318,6 +318,59 @@ namespace rediscpp
 			value.erase(range.second, value.end());
 		}
 	};
+	class hash_type : public value_interface
+	{
+		std::unordered_map<std::string, std::string> value;
+	public:
+		hash_type(const timeval_type & current)
+			: value_interface(current)
+		{
+		}
+		virtual ~hash_type(){}
+		virtual std::string get_type() { return std::string("hash"); }
+		size_t hdel(const std::vector<std::string*> & fields)
+		{
+			size_t removed = 0;
+			for (auto it = fields.begin(), end = fields.end(); it != end; ++it) {
+				auto & field = **it;
+				auto vit = value.find(field);
+				if (vit != value.end()) {
+					value.erase(vit);
+					++removed;
+				}
+			}
+			return removed;
+		}
+		bool hexists(const std::string field) const { return value.find(field) != value.end(); }
+		bool empty() const { return value.empty(); }
+		std::pair<std::string,bool> hget(const std::string field) const
+		{
+			auto it = value.find(field);
+			if (it != value.end()) {
+				return std::make_pair(it->second, true);
+			}
+			return std::make_pair(std::string(), false);
+		}
+		std::pair<std::unordered_map<std::string, std::string>::const_iterator,std::unordered_map<std::string, std::string>::const_iterator> hgetall() const
+		{
+			return std::make_pair(value.begin(), value.end());
+		}
+		size_t size() const { return value.size(); }
+		bool hset(const std::string & field, const std::string & val, bool nx = false)
+		{
+			auto it = value.find(field);
+			if (it != value.end()) {
+				if (nx) {
+					return false;
+				}
+				it->second = val;
+				return false;
+			} else {
+				value[field] = val;
+				return true;//created
+			}
+		}
+	};
 	class database_type;
 	class database_write_locker
 	{
@@ -378,6 +431,7 @@ namespace rediscpp
 		}
 		std::shared_ptr<string_type> get_string(const std::string & key, const timeval_type & current) const { return get_as<string_type>(key, current); }
 		std::shared_ptr<list_type> get_list(const std::string & key, const timeval_type & current) const { return get_as<list_type>(key, current); }
+		std::shared_ptr<hash_type> get_hash(const std::string & key, const timeval_type & current) const { return get_as<hash_type>(key, current); }
 		bool erase(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);
@@ -686,6 +740,8 @@ namespace rediscpp
 				return pos;
 			}
 		}
+		int64_t incrby(const std::string & value, int64_t count);
+		std::string incrbyfloat(const std::string & value, const std::string & count);
 
 		//connection api
 		bool api_auth(client_type * client);
@@ -783,6 +839,8 @@ namespace rediscpp
 		bool api_hset(client_type * client);
 		bool api_hsetnx(client_type * client);
 		bool api_hvals(client_type * client);
+		bool api_hgetall_internal(client_type * client, bool keys, bool vals);
+		bool api_hset_internal(client_type * client, bool nx);
 		//sets api
 		bool api_sadd(client_type * client);
 		bool api_scard(client_type * client);

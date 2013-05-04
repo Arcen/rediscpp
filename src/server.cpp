@@ -773,6 +773,20 @@ namespace rediscpp
 		api_map["LSET"].set(&server_type::api_lset).argc(4).type("ckiv");
 		api_map["LTRIM"].set(&server_type::api_ltrim).argc(4).type("ckii");
 		api_map["RPOPLPUSH"].set(&server_type::api_rpoplpush).argc(3).type("ckk");
+		//hashes api
+		api_map["HDEL"].set(&server_type::api_hdel).argc_gte(3).type("csk*");
+		api_map["HEXISTS"].set(&server_type::api_hexists).argc(3).type("csk");
+		api_map["HGET"].set(&server_type::api_hget).argc(3).type("csk");
+		api_map["HGETALL"].set(&server_type::api_hgetall).argc(2).type("cs");
+		api_map["HKEYS"].set(&server_type::api_hkeys).argc(2).type("cs");
+		api_map["HVALS"].set(&server_type::api_hvals).argc(2).type("cs");
+		api_map["HINCRBY"].set(&server_type::api_hincrby).argc(4).type("cski");
+		api_map["HINCRBYFLOAT"].set(&server_type::api_hincrbyfloat).argc(4).type("cskf");
+		api_map["HLEN"].set(&server_type::api_hlen).argc(2).type("cs");
+		api_map["HMGET"].set(&server_type::api_hmget).argc_gte(3).type("csk*");
+		api_map["HMSET"].set(&server_type::api_hmset).argc_gte(4).type("cskv**");
+		api_map["HSET"].set(&server_type::api_hset).argc(4).type("cskv");
+		api_map["HSETNX"].set(&server_type::api_hsetnx).argc(4).type("cskv");
 	}
 	server_type::~server_type()
 	{
