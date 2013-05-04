@@ -10,6 +10,7 @@
 #include <sys/epoll.h>
 #include <sys/uio.h>
 #include <sys/eventfd.h>
+#include <sys/timerfd.h>
 
 #include "common.h"
 #include "thread.h"
@@ -143,6 +144,7 @@ namespace rediscpp
 	};
 	class event_type : public pollable_type
 	{
+		mutex_type mutex;
 		event_type(const event_type &);
 		event_type();
 		event_type(int fd_)
@@ -174,6 +176,7 @@ namespace rediscpp
 		}
 		bool send()
 		{
+			mutex_locker locker(mutex);
 			uint64_t increment = 1;
 			int r = write(fd, &increment, sizeof(increment));
 			if (r == sizeof(increment)) {
@@ -193,6 +196,7 @@ namespace rediscpp
 		}
 		bool recv()
 		{
+			mutex_locker locker(mutex);
 			int interupt_count = 0;
 			while (true) {
 				uint64_t counter = 0;
@@ -211,11 +215,163 @@ namespace rediscpp
 					case EAGAIN://イベントが発生していない
 						return false;
 					default:
-						lprintf(__FILE__, __LINE__, error_level, "::write failed:%s", string_error(errno).c_str());
+						lprintf(__FILE__, __LINE__, error_level, "::read failed:%s", string_error(errno).c_str());
 						return false;
 					}
 				}
-				lprintf(__FILE__, __LINE__, error_level, "::write failed: r(%d) < sizeof(uint64_t)", r);
+				lprintf(__FILE__, __LINE__, error_level, "::read failed: r(%d) < sizeof(uint64_t)", r);
+				break;
+			}
+			return false;
+		}
+		virtual uint32_t get_events()
+		{
+			return EPOLLIN | EPOLLET | EPOLLONESHOT;
+		}
+	};
+	class timer_type : public pollable_type
+	{
+		mutex_type mutex;
+		timer_type(const timer_type &);
+		timer_type();
+		timer_type(int fd_)
+			: pollable_type(fd_)
+			, mutex(true)
+		{
+		}
+	public:
+		~timer_type()
+		{
+			close();
+		}
+		static std::shared_ptr<timer_type> create(bool monotonic = true)
+		{
+			int fd = timerfd_create(monotonic ? CLOCK_MONOTONIC : CLOCK_REALTIME, TFD_CLOEXEC | TFD_NONBLOCK);
+			if (fd < 0) {
+				switch (errno) {
+				default:
+					throw std::runtime_error("::timerfd_create failed:" + string_error(errno));
+				}
+			}
+			std::shared_ptr<timer_type> result(new timer_type(fd));
+			result->self = result;
+			return result;
+		}
+		bool get(time_t & initial_sec, long & initial_nsec, time_t & periodic_sec, long & periodic_nsec)
+		{
+			itimerspec its;
+			int r = 0;
+			{
+				mutex_locker locker(mutex);
+				r = timerfd_gettime(fd, &its);
+			}
+			if (r < 0) {
+				switch (errno) {
+				default:
+					lprintf(__FILE__, __LINE__, error_level, "::timerfd_gettime failed:%s", string_error(errno).c_str());
+					return false;
+				}
+			}
+			initial_sec = its.it_value.tv_sec;
+			initial_nsec = its.it_value.tv_nsec;
+			periodic_sec = its.it_interval.tv_sec;
+			periodic_nsec = its.it_interval.tv_nsec;
+			return true;
+		}
+		bool set(time_t initial_sec, long initial_nsec, time_t periodic_sec, long periodic_nsec)
+		{
+			itimerspec its;
+			its.it_value.tv_sec = initial_sec;
+			its.it_value.tv_nsec = initial_nsec;
+			its.it_interval.tv_sec = periodic_sec;
+			its.it_interval.tv_nsec = periodic_nsec;
+			int r = 0;
+			{
+				mutex_locker locker(mutex);
+				r = timerfd_settime(fd, 0, &its, NULL);
+			}
+			if (r < 0) {
+				switch (errno) {
+				default:
+					lprintf(__FILE__, __LINE__, error_level, "::timerfd_settime failed:%s", string_error(errno).c_str());
+					return false;
+				}
+			}
+			return true;
+		}
+		bool stop()
+		{
+			return set(0, 0, 0, 0);
+		}
+		bool start(time_t sec, long nsec, bool once)
+		{
+			return set(sec, nsec, once ? 0 : sec, once ? 0 : nsec);
+		}
+		bool insert(time_t sec, long nsec)
+		{
+			time_t initial_sec, periodic_sec;
+			long initial_nsec, periodic_nsec;
+			mutex_locker locker(mutex);
+			//lprintf(__FILE__, __LINE__, debug_level, "timer insert %d[sec]", (int)sec);
+			if (!get(initial_sec, initial_nsec, periodic_sec, periodic_nsec)) {
+				return false;
+			}
+			const bool started = (initial_sec != 0 && initial_nsec != 0);
+			if (!started) {
+				//lprintf(__FILE__, __LINE__, debug_level, "timer not started, start %d[sec]", (int)sec);
+				return start(sec, nsec, true);
+			}
+			if (sec < initial_sec || (sec == initial_sec && nsec < nsec)) {//more fast first interval
+				//lprintf(__FILE__, __LINE__, debug_level, "timer started but too late %d[sec], start %d[sec]", (int)initial_sec, (int)sec);
+				return set(sec, nsec, periodic_sec, periodic_nsec);
+			}
+			//lprintf(__FILE__, __LINE__, debug_level, "timer started and near %d[sec], start %d[sec]", (int)initial_sec, (int)sec);
+			return true;
+		}
+		bool is_start()
+		{
+			time_t initial_sec, periodic_sec;
+			long initial_nsec, periodic_nsec;
+			if (!get(initial_sec, initial_nsec, periodic_sec, periodic_nsec)) {
+				return false;
+			}
+			return initial_sec != 0 && initial_nsec != 0;
+		}
+		bool is_periodic()
+		{
+			time_t initial_sec, periodic_sec;
+			long initial_nsec, periodic_nsec;
+			if (!get(initial_sec, initial_nsec, periodic_sec, periodic_nsec)) {
+				return false;
+			}
+			return initial_nsec != 0 && periodic_nsec != 0;
+		}
+		bool recv()
+		{
+			mutex_locker locker(mutex);
+			int interupt_count = 0;
+			while (true) {
+				uint64_t counter = 0;
+				int r = read(fd, &counter, sizeof(counter));
+				if (r == sizeof(counter)) {
+					return true;
+				}
+				if (r < 0) {
+					switch (errno) {
+					case EINTR:
+						if (interupt_count < 3) {
+							++interupt_count;
+							continue;
+						}
+						return false;
+					case EAGAIN://イベントが発生していない
+						return false;
+					default:
+						lprintf(__FILE__, __LINE__, error_level, "::read failed:%s", string_error(errno).c_str());
+						return false;
+					}
+				}
+				lprintf(__FILE__, __LINE__, error_level, "::read failed: r(%d) < sizeof(uint64_t)", r);
 				break;
 			}
 			return false;

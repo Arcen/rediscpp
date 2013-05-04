@@ -84,8 +84,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\api_connection.cpp" />
+    <ClCompile Include="src\api_hashes.cpp" />
     <ClCompile Include="src\api_keys.cpp" />
+    <ClCompile Include="src\api_lists.cpp" />
     <ClCompile Include="src\api_server.cpp" />
+    <ClCompile Include="src\api_sets.cpp" />
+    <ClCompile Include="src\api_sorted_sets.cpp" />
     <ClCompile Include="src\api_strings.cpp" />
     <ClCompile Include="src\api_transactions.cpp" />
     <ClCompile Include="src\common.cpp" />

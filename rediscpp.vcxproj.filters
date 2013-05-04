@@ -59,6 +59,18 @@
     <ClCompile Include="src\common.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\api_lists.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_hashes.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_sets.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_sorted_sets.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\network.h">

@@ -10,6 +10,16 @@ namespace rediscpp
 	class server_type;
 	class client_type;
 	typedef std::vector<std::string> arguments_type;
+	class blocked_exception : public std::exception
+	{
+		std::string what_;
+	public:
+		blocked_exception() : std::exception(){}
+		blocked_exception(const blocked_exception & rhs){}
+		blocked_exception(const char * const & msg) : what_(msg){}
+		virtual ~blocked_exception() throw() {}
+		virtual const char* what() const throw() { return what_.c_str(); }
+	};
 	class value_interface
 	{
 	protected:
@@ -74,6 +84,39 @@ namespace rediscpp
 			return string_value.size();
 		}
 	};
+	class list_type : public value_interface
+	{
+		std::list<std::string> value;
+		size_t size_;
+	public:
+		list_type(const timeval_type & current)
+			: value_interface(current)
+			, size_(0)
+		{
+		}
+		virtual ~list_type(){}
+		virtual std::string get_type() { return std::string("list"); }
+		const std::list<std::string> & get();
+		void lpush(const std::vector<std::string*> & elements)
+		{
+			for (auto it = elements.rbegin(), end = elements.rend(); it != end; ++it) {
+				value.insert(value.begin(), **it);
+			}
+			size_ += elements.size();
+		}
+		std::string lpop()
+		{
+			if (size_ == 0) {
+				throw std::runtime_error("lpop failed. list is empty");
+			}
+			std::string result = value.front();
+			value.pop_front();
+			--size_;
+			return result;
+		}
+		size_t size() const { return size_; }
+		bool empty() const { return size_ == 0; }
+	};
 	class database_type;
 	class database_write_locker
 	{
@@ -119,18 +162,21 @@ namespace rediscpp
 			}
 			return value;
 		}
-		std::shared_ptr<string_type> get_string(const std::string & key, const timeval_type & current) const
+		template<typename T>
+		std::shared_ptr<T> get_as(const std::string & key, const timeval_type & current) const
 		{
 			std::shared_ptr<value_interface> val = get(key, current);
 			if (!val) {
-				return std::shared_ptr<string_type>();
+				return std::shared_ptr<T>();
 			}
-			std::shared_ptr<string_type> str = std::dynamic_pointer_cast<string_type>(val);
-			if (!str) {
+			std::shared_ptr<T> value = std::dynamic_pointer_cast<T>(val);
+			if (!value) {
 				throw std::runtime_error("ERR type mismatch");
 			}
-			return str;
+			return value;
 		}
+		std::shared_ptr<string_type> get_string(const std::string & key, const timeval_type & current) const { return get_as<string_type>(key, current); }
+		std::shared_ptr<list_type> get_list(const std::string & key, const timeval_type & current) const { return get_as<list_type>(key, current); }
 		bool erase(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);
@@ -277,6 +323,8 @@ namespace rediscpp
 		std::vector<uint8_t> write_cache;
 		timeval_type current_time;
 		int events;//for thread
+		bool blocked;//for list
+		timeval_type blocked_till;
 		std::weak_ptr<client_type> self;
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
@@ -318,6 +366,23 @@ namespace rediscpp
 		void process();
 		void set(std::shared_ptr<client_type> self_) { self = self_; }
 		std::shared_ptr<client_type> get() { return self.lock(); }
+		bool is_blocked() const { return blocked; }
+		timeval_type get_blocked_till() const { return blocked_till; }
+		void start_blocked(int64_t sec)
+		{
+			blocked = true;
+			if (0 < sec) {
+				blocked_till = current_time;
+				blocked_till.add_msec(sec * 1000);
+			} else {
+				blocked_till.epoc();
+			}
+		}
+		void end_blocked() { blocked = false; }
+		bool still_block() const
+		{
+			return blocked && (blocked_till.is_epoc() || current_time < blocked_till);
+		}
 	private:
 		void inline_command_parser(const std::string & line);
 		bool parse_line(std::string & line);
@@ -339,6 +404,7 @@ namespace rediscpp
 		{
 			add_type,
 			del_type,
+			list_pushed_type,///<listに値が何か追加された場合
 		};
 		job_types type;
 		std::shared_ptr<client_type> client;
@@ -353,7 +419,10 @@ namespace rediscpp
 		friend class client_type;
 		std::shared_ptr<poll_type> poll;
 		std::shared_ptr<event_type> event;
+		std::shared_ptr<timer_type> timer;
 		std::map<socket_type*,std::shared_ptr<client_type>> clients;
+		mutex_type blocked_mutex;
+		std::set<std::shared_ptr<client_type>> blocked_clients;
 		std::shared_ptr<socket_type> listening;
 		std::map<std::string,std::string> store;
 		std::string password;
@@ -365,9 +434,11 @@ namespace rediscpp
 		static void client_callback(pollable_type * p, int events);
 		static void server_callback(pollable_type * p, int events);
 		static void event_callback(pollable_type * p, int events);
+		static void timer_callback(pollable_type * p, int events);
 		void on_server(socket_type * s, int events);
 		void on_client(socket_type * s, int events);
 		void on_event(event_type * e, int events);
+		void on_timer(timer_type * e, int events);
 	public:
 		server_type();
 		~server_type();
@@ -380,9 +451,25 @@ namespace rediscpp
 		database_write_locker writable_db(client_type * client) { return writable_db(client->get_db_index(), client); }
 		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index(), client); }
 	private:
-		void remove_client(std::shared_ptr<client_type> client);
+		void remove_client(std::shared_ptr<client_type> client, bool now = false);
+		void append_client(std::shared_ptr<client_type> client, bool now = false);
 		std::map<std::string,api_info> api_map;
 		void build_api_map();
+		void blocked(std::shared_ptr<client_type> client)
+		{
+			if (!client) return;
+			mutex_locker locker(blocked_mutex);
+			blocked_clients.insert(client);
+		}
+		void unblocked(std::shared_ptr<client_type> client)
+		{
+			if (!client) return;
+			mutex_locker locker(blocked_mutex);
+			blocked_clients.insert(client);
+		}
+		void excecute_blocked_client(bool now = false);
+		void notify_list_pushed();
+
 		//connection api
 		bool api_auth(client_type * client);
 		bool api_ping(client_type * client);

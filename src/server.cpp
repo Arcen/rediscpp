@@ -37,6 +37,8 @@ namespace rediscpp
 		, transaction(false)
 		, multi_executing(false)
 		, current_time(0, 0)
+		, blocked(false)
+		, blocked_till(0, 0)
 	{
 		write_cache.reserve(1500);
 	}
@@ -56,16 +58,22 @@ namespace rediscpp
 		listening->set_extra(this);
 		listening->set_callback(server_callback);
 		listening->set_nonblocking();
+
+		timer = timer_type::create();
+		timer->set_extra(this);
+		timer->set_callback(timer_callback);
+
+		event = event_type::create();
+		event->set_extra(this);
+		event->set_callback(event_callback);
+
 		poll = poll_type::create();
 		poll->append(listening);
-		int base_poll_count = 1;
-		if (threads) {
-			event = event_type::create();
-			event->set_extra(this);
-			event->set_callback(event_callback);
-			poll->append(event);
-			++base_poll_count;
+		poll->append(timer);
+		poll->append(event);
 
+		const int base_poll_count = 3;//listening & timer
+		if (threads) {
 			startup_threads(threads);
 		}
 		while (true) {
@@ -132,6 +140,18 @@ namespace rediscpp
 		}
 		server->on_event(e, events);
 	}
+	void server_type::timer_callback(pollable_type * p, int events)
+	{
+		timer_type * t = dynamic_cast<timer_type *>(p);
+		if (!t) {
+			return;
+		}
+		server_type * server = reinterpret_cast<server_type *>(t->get_extra());
+		if (!server) {
+			return;
+		}
+		server->on_timer(t, events);
+	}
 	void server_type::on_server(socket_type * s, int events)
 	{
 		std::shared_ptr<socket_type> cs = s->accept();
@@ -155,15 +175,7 @@ namespace rediscpp
 		if (cs->done()) {
 			cs->close();
 		} else {
-			//１回の接続で送受信が終わってない場合
-			if (thread_pool.empty()) {
-				poll->append(cs);
-				clients[cs.get()] = ct;
-			} else {
-				std::shared_ptr<job_type> job(new job_type(job_type::add_type, ct));
-				jobs.push(job);
-				event->send();
-			}
+			append_client(ct);
 		}
 	}
 	void server_type::on_event(event_type * e, int events)
@@ -176,24 +188,24 @@ namespace rediscpp
 			}
 			switch (job->type) {
 			case job_type::add_type:
-				{
-					auto client = job->client;
-					auto cs = client->client;
-					poll->append(cs);
-					clients[cs.get()] = client;
-				}
+				append_client(job->client, true);
 				break;
 			case job_type::del_type:
-				{
-					auto client = job->client;
-					auto cs = client->client;
-					cs->close();
-					clients.erase(cs.get());
-				}
+				remove_client(job->client, true);
+				break;
+			case job_type::list_pushed_type:
+				excecute_blocked_client(true);
 				break;
 			}
 		}
 		e->mod();
+	}
+	void server_type::on_timer(timer_type * t, int events)
+	{
+		if (t->recv()) {
+			excecute_blocked_client();
+		}
+		t->mod();
 	}
 	void server_type::on_client(socket_type * s, int events)
 	{
@@ -207,13 +219,27 @@ namespace rediscpp
 		client->process();
 		if (s->done()) {
 			remove_client(client);
-		} else {
+		} else if (!client->is_blocked()) {
 			s->mod();
 		}
 	}
-	void server_type::remove_client(std::shared_ptr<client_type> client)
+	void server_type::append_client(std::shared_ptr<client_type> client, bool now)
 	{
-		if (thread_pool.empty()) {
+		if (thread_pool.empty() || now) {
+			poll->append(client->client);
+			clients[client->client.get()] = client;
+		} else {
+			std::shared_ptr<job_type> job(new job_type(job_type::add_type, client));
+			jobs.push(job);
+			event->send();
+		}
+	}
+	void server_type::remove_client(std::shared_ptr<client_type> client, bool now)
+	{
+		if (thread_pool.empty() || now) {
+			if (client->is_blocked()) {
+				unblocked(client);
+			}
 			client->client->close();
 			clients.erase(client->client.get());
 		} else {
@@ -222,8 +248,61 @@ namespace rediscpp
 			event->send();
 		}
 	}
+	void server_type::excecute_blocked_client(bool now)
+	{
+		if (thread_pool.empty() || now) {
+			std::set<std::shared_ptr<client_type>> clients;
+			{
+				mutex_locker locker(blocked_mutex);
+				clients = blocked_clients;
+			}
+			bool set_timer = false;
+			timeval_type tv;
+			for (auto it = clients.begin(), end = clients.end(); it != end; ++it) {
+				auto & client = *it;
+				client->process();
+				if (client->is_blocked()) {
+					lprintf(__FILE__, __LINE__, debug_level, "still blocked");
+					timeval_type ctv = client->get_blocked_till();
+					if (!ctv.is_epoc()) {
+						if (!set_timer || ctv < tv) {
+							set_timer = true;
+							if (client->current_time < ctv) {
+								tv = ctv - client->current_time;
+							}
+						}
+					}
+				}
+			}
+			//次にタイムアウトが起きるクライアントを起こすイベントを設定する
+			if (set_timer) {
+				if (tv.tv_sec == 0 && tv.tv_usec == 0) {
+					tv.tv_usec = 1;
+				}
+				timer->start(tv.tv_sec, tv.tv_usec * 1000, true);
+			}
+		} else {
+			notify_list_pushed();
+		}
+	}
+	void server_type::notify_list_pushed()
+	{
+		std::shared_ptr<job_type> job(new job_type(job_type::list_pushed_type, std::shared_ptr<client_type>()));
+		jobs.push(job);
+		event->send();
+	}
 	void client_type::process()
 	{
+		if (is_blocked()) {
+			parse();
+			if (client->should_send()) {
+				client->send();
+			}
+			if (!is_blocked()) {
+				client->mod();
+			}
+			return;
+		}
 		if (events & EPOLLIN) {//recv
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			client->recv();
@@ -257,27 +336,74 @@ namespace rediscpp
 	bool client_type::parse()
 	{
 		bool time_updated = false;
-		while (true) {
-			if (argument_count == 0) {
-				std::string arg_count;
-				if (!parse_line(arg_count)) {
-					break;
-				}
-				if (arg_count.empty()) {
-					continue;
-				}
-				if (*arg_count.begin() == '*') {
-					argument_count = atoi(arg_count.c_str() + 1);
-					argument_index = 0;
-					if (argument_count <= 0) {
-						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
-						flush();
-						return false;
+		try {
+			while (true) {
+				if (argument_count == 0) {
+					std::string arg_count;
+					if (!parse_line(arg_count)) {
+						break;
 					}
-					arguments.clear();
-					arguments.resize(argument_count);
+					if (arg_count.empty()) {
+						continue;
+					}
+					if (*arg_count.begin() == '*') {
+						argument_count = atoi(arg_count.c_str() + 1);
+						argument_index = 0;
+						if (argument_count <= 0) {
+							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_count.c_str());
+							flush();
+							return false;
+						}
+						arguments.clear();
+						arguments.resize(argument_count);
+					} else {
+						inline_command_parser(arg_count);
+						argument_index = argument_count = arg_count.size();
+						if (!time_updated) {
+							time_updated = true;
+							current_time.update();
+						}
+						if (!execute()) {
+							response_error("ERR unknown");
+						}
+						arguments.clear();
+						argument_count = 0;
+						argument_index = 0;
+						argument_size = argument_is_undefined;
+					}
+				} else if (argument_index < argument_count) {
+					if (argument_size == argument_is_undefined) {
+						std::string arg_size;
+						if (!parse_line(arg_size)) {
+							break;
+						}
+						if (!arg_size.empty() && *arg_size.begin() == '$') {
+							argument_size = atoi(arg_size.c_str() + 1);
+							if (argument_size < -1) {
+								lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
+								flush();
+								return false;
+							}
+							if (argument_size < 0) {
+								argument_size = argument_is_undefined;
+								++argument_index;
+							}
+						} else {
+							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
+							flush();
+							return false;
+						}
+					} else {
+						std::string arg_data;
+						if (!parse_data(arg_data, argument_size)) {
+							break;
+						}
+						auto & arg = arguments[argument_index];
+						arg = arg_data;
+						argument_size = argument_is_undefined;
+						++argument_index;
+					}
 				} else {
-					inline_command_parser(arg_count);
 					if (!time_updated) {
 						time_updated = true;
 						current_time.update();
@@ -285,52 +411,13 @@ namespace rediscpp
 					if (!execute()) {
 						response_error("ERR unknown");
 					}
-				}
-			} else if (argument_index < argument_count) {
-				if (argument_size == argument_is_undefined) {
-					std::string arg_size;
-					if (!parse_line(arg_size)) {
-						break;
-					}
-					if (!arg_size.empty() && *arg_size.begin() == '$') {
-						argument_size = atoi(arg_size.c_str() + 1);
-						if (argument_size < -1) {
-							lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
-							flush();
-							return false;
-						}
-						if (argument_size < 0) {
-							argument_size = argument_is_undefined;
-							++argument_index;
-						}
-					} else {
-						lprintf(__FILE__, __LINE__, info_level, "unsupported protocol %s", arg_size.c_str());
-						flush();
-						return false;
-					}
-				} else {
-					std::string arg_data;
-					if (!parse_data(arg_data, argument_size)) {
-						break;
-					}
-					auto & arg = arguments[argument_index];
-					arg = arg_data;
+					arguments.clear();
+					argument_count = 0;
+					argument_index = 0;
 					argument_size = argument_is_undefined;
-					++argument_index;
 				}
-			} else {
-				if (!time_updated) {
-					time_updated = true;
-					current_time.update();
-				}
-				if (!execute()) {
-					response_error("ERR unknown");
-				}
-				arguments.clear();
-				argument_count = 0;
-				argument_index = 0;
-				argument_size = argument_is_undefined;
 			}
+		} catch (blocked_exception e) {
 		}
 		flush();
 		return true;
@@ -461,6 +548,8 @@ namespace rediscpp
 				return execute(it->second);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());
+		} catch (blocked_exception & e) {
+			throw;
 		} catch (std::exception & e) {
 			response_error(e.what());
 			return true;
@@ -517,6 +606,38 @@ namespace rediscpp
 					break;
 				}
 			}
+			//後方一致
+			std::list<std::string*> back_keys;
+			std::list<std::string*> back_values;
+			if (arg_pos < argc && arg_pos < pattern_length && info.arg_types[arg_pos] == '*') {
+				for (; 0 < argc && arg_pos < pattern_length; --argc, --pattern_length) {
+					if (info.arg_types[pattern_length-1] == '*') {
+						break;
+					}
+					switch (info.arg_types[pattern_length-1]) {
+					case 'c'://command
+					case 's'://string
+					case 't'://time
+					case 'i'://integer
+					case 'f'://float
+						break;
+					case 'k'://key
+						back_keys.push_front(&arguments[argc-1]);
+						break;
+					case 'v'://value
+						back_values.push_front(&arguments[argc-1]);
+						break;
+					case 'd'://db index
+						{
+							int64_t index = atoi64(arguments[argc-1]);
+							if (index < 0 || server.databases.size() <= index) {
+								throw std::runtime_error("ERR db index is wrong range");
+							}
+						}
+						break;
+					}
+				}
+			}
 			if (arg_pos < argc) {
 				size_t star_count = 0;
 				for (size_t i = arg_pos; i < pattern_length; ++i) {
@@ -550,6 +671,12 @@ namespace rediscpp
 						throw std::runtime_error("ERR command pattern error");
 					}
 				}
+			}
+			if (!back_keys.empty()) {
+				keys.insert(keys.end(), back_keys.begin(), back_keys.end());
+			}
+			if (!back_values.empty()) {
+				values.insert(values.end(), back_values.begin(), back_values.end());
 			}
 			bool result = (server.*(info.function))(this);
 			keys.clear();
@@ -628,6 +755,9 @@ namespace rediscpp
 		api_map["BITOP"].set(&server_type::api_bitop).argc_gte(4).type("cskk*");
 		api_map["GETBIT"].set(&server_type::api_getbit).argc(3).type("cki");
 		api_map["SETBIT"].set(&server_type::api_setbit).argc(4).type("ckiv");
+		//lists api
+		api_map["BLPOP"].set(&server_type::api_blpop).argc_gte(3).type("ck*t");
+		api_map["LPUSH"].set(&server_type::api_lpush).argc_gte(3).type("ckv*");
 	}
 	server_type::~server_type()
 	{
