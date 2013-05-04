@@ -170,22 +170,6 @@ namespace rediscpp
 		}
 		return true;
 	}
-	static int64_t str_pos_fix(int64_t pos, const std::string & str)
-	{
-		if (pos < 0) {
-			pos = - pos;
-			if (str.size() < pos) {
-				return 0;
-			} else {
-				return str.size() - pos;
-			}
-		} else {
-			if (str.size() < pos) {
-				return str.size();
-			}
-			return pos;
-		}
-	}
 	///範囲内の値を取得する
 	///@param[in] key キー名
 	///@param[in] start 文字の開始位置
@@ -205,8 +189,8 @@ namespace rediscpp
 			return true;
 		}
 		auto & string = value->get();
-		int64_t start = str_pos_fix(atoi64(client->get_argument(2)), string);
-		int64_t end = std::min<int64_t>(string.size(), str_pos_fix(atoi64(client->get_argument(3)), string) + 1);
+		int64_t start = pos_fix(atoi64(client->get_argument(2)), string.size());
+		int64_t end = std::min<int64_t>(string.size(), pos_fix(atoi64(client->get_argument(3)), string.size()) + 1);
 		if (end <= start) {
 			client->response_null();
 		} else {
@@ -474,8 +458,8 @@ namespace rediscpp
 		}
 		auto & string = value->get();
 		auto & arguments = client->get_arguments();
-		int64_t start = str_pos_fix(arguments.size() < 3 ? 0 : atoi64(client->get_argument(2)), string);
-		int64_t end = std::min<int64_t>(string.size(), str_pos_fix(arguments.size() < 4 ? -1 : atoi64(client->get_argument(3)), string) + 1);
+		int64_t start = pos_fix(arguments.size() < 3 ? 0 : atoi64(client->get_argument(2)), string.size());
+		int64_t end = std::min<int64_t>(string.size(), pos_fix(arguments.size() < 4 ? -1 : atoi64(client->get_argument(3)), string.size()) + 1);
 		if (end <= start) {
 			client->response_integer0();
 		} else {

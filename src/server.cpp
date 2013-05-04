@@ -757,7 +757,22 @@ namespace rediscpp
 		api_map["SETBIT"].set(&server_type::api_setbit).argc(4).type("ckiv");
 		//lists api
 		api_map["BLPOP"].set(&server_type::api_blpop).argc_gte(3).type("ck*t");
+		api_map["BRPOP"].set(&server_type::api_brpop).argc_gte(3).type("ck*t");
+		api_map["BRPOPLPUSH"].set(&server_type::api_brpoplpush).argc(4).type("ckkt");
 		api_map["LPUSH"].set(&server_type::api_lpush).argc_gte(3).type("ckv*");
+		api_map["RPUSH"].set(&server_type::api_rpush).argc_gte(3).type("ckv*");
+		api_map["LPUSHX"].set(&server_type::api_lpushx).argc(3).type("ckv");
+		api_map["RPUSHX"].set(&server_type::api_rpushx).argc(3).type("ckv");
+		api_map["LPOP"].set(&server_type::api_lpop).argc(2).type("ck");
+		api_map["RPOP"].set(&server_type::api_rpop).argc(2).type("ck");
+		api_map["LINSERT"].set(&server_type::api_linsert).argc(5).type("ckssv");
+		api_map["LINDEX"].set(&server_type::api_lindex).argc(3).type("cki");
+		api_map["LLEN"].set(&server_type::api_llen).argc(2).type("ck");
+		api_map["LRANGE"].set(&server_type::api_lrange).argc(4).type("ckii");
+		api_map["LREM"].set(&server_type::api_lrem).argc(4).type("ckiv");
+		api_map["LSET"].set(&server_type::api_lset).argc(4).type("ckiv");
+		api_map["LTRIM"].set(&server_type::api_ltrim).argc(4).type("ckii");
+		api_map["RPOPLPUSH"].set(&server_type::api_rpoplpush).argc(3).type("ckk");
 	}
 	server_type::~server_type()
 	{
