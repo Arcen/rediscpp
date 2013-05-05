@@ -13,14 +13,20 @@ No License yet.
 * NO persistence
 
 ## Not support API
-* CLIENT KILL, LIST, GETNAME, SETNAME
 * CONFIG GET, SET, RESETSTAT
+    * No configuration feature yet
 * SLAVEOF, SYNC, MIGRATE, RESTORE
-* INFO, MONITOR, SLOWLOG, DUMP, OBJECT
-* DEBUG OBJECT, SETFAULT
+    * No client feature yet
+* INFO, MONITOR, SLOWLOG, DUMP, OBJECT, DEBUG OBJECT, SETFAULT
+    * No system feature yet
 * Scripting APIs
+    * No lua
 * Pub/Sub APIs
+    * No channel message
+* CLIENT KILL, LIST, GETNAME, SETNAME
+    * Could not get fixed client list by multi thread
 * BGREWRITEAOF, BGSAVE, LASTSAVE, SAVE
+    * No support persistence
 
 # TODO
 * not implemented api
