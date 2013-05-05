@@ -787,6 +787,21 @@ namespace rediscpp
 		api_map["HMSET"].set(&server_type::api_hmset).argc_gte(4).type("cskv**");
 		api_map["HSET"].set(&server_type::api_hset).argc(4).type("cskv");
 		api_map["HSETNX"].set(&server_type::api_hsetnx).argc(4).type("cskv");
+		//sets api
+		api_map["SADD"].set(&server_type::api_sadd).argc_gte(3).type("ckv*");
+		api_map["SCARD"].set(&server_type::api_scard).argc(2).type("ck");
+		api_map["SISMEMBER"].set(&server_type::api_sismember).argc(3).type("ckv");
+		api_map["SMEMBERS"].set(&server_type::api_smembers).argc(2).type("ck");
+		api_map["SMOVE"].set(&server_type::api_smove).argc(4).type("ckkv");
+		api_map["SPOP"].set(&server_type::api_spop).argc(2).type("ck");
+		api_map["SRANDMEMBER"].set(&server_type::api_srandmember).argc_gte(2).type("cki");
+		api_map["SREM"].set(&server_type::api_srem).argc_gte(3).type("ckv*");
+		api_map["SDIFF"].set(&server_type::api_sdiff).argc_gte(2).type("ck*");
+		api_map["SDIFFSTORE"].set(&server_type::api_sdiffstore).argc_gte(3).type("ckk*");
+		api_map["SINTER"].set(&server_type::api_sinter).argc_gte(2).type("ck*");
+		api_map["SINTERSTORE"].set(&server_type::api_sinterstore).argc_gte(3).type("ckk*");
+		api_map["SUNION"].set(&server_type::api_sunion).argc_gte(2).type("ck*");
+		api_map["SUNIONSTORE"].set(&server_type::api_sunionstore).argc_gte(3).type("ckk*");
 	}
 	server_type::~server_type()
 	{

@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <limits>
 #include <algorithm>
+#include <iterator>
 #include <stdarg.h>
 #include <inttypes.h>
 #include <math.h>
