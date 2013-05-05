@@ -78,6 +78,19 @@ namespace rediscpp
 		is_valid = (endptr == end && errno == 0);
 		return result;
 	}
+	inline double atod(const std::string & str, bool & is_valid)
+	{
+		if (str.empty()) {
+			is_valid = false;
+			return 0;
+		}
+		char * endptr = NULL;
+		errno = 0;
+		long double result = strtod(str.c_str(), &endptr);
+		const char * end = str.c_str() + str.size();
+		is_valid = (endptr == end && errno == 0);
+		return result;
+	}
 	bool pattern_match(const std::string & pattern, const std::string & target, bool nocase = false);
 };
 

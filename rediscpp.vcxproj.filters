@@ -68,7 +68,7 @@
     <ClCompile Include="src\api_sets.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\api_sorted_sets.cpp">
+    <ClCompile Include="src\api_zsets.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

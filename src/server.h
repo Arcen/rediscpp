@@ -561,7 +561,9 @@ namespace rediscpp
 	};
 	class zset_type : public value_interface
 	{
+	public:
 		typedef double score_type;
+	private:
 		struct value_type
 		{
 			std::string member;
@@ -633,6 +635,7 @@ namespace rediscpp
 		std::map<std::string, std::shared_ptr<value_type>> value;//値でユニークな集合
 		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//スコアで並べた状態
 	public:
+		typedef std::set<std::shared_ptr<value_type>, score_comparer>::const_iterator const_iterator;
 		zset_type(const timeval_type & current)
 			: value_interface(current)
 		{
@@ -645,8 +648,9 @@ namespace rediscpp
 			auto it = sorted.find(rhs);
 			if (it != sorted.end()) {
 				sorted.erase(it);
+				return true;
 			}
-			lprintf(__FILE__, __LINE__, alert_level, "zset structure broken, not found value by score");
+			lprintf(__FILE__, __LINE__, alert_level, "zset structure broken, %s not found value by score %f", rhs->member.c_str(), rhs->score);
 			return false;
 		}
 	public:
@@ -675,30 +679,112 @@ namespace rediscpp
 			}
 			return created;
 		}
+		size_t zrem(const std::vector<std::string*> & members)
+		{
+			size_t removed = 0;
+			for (auto it = members.begin(), end = members.end(); it != end; ++it) {
+				auto & member = **it;
+				auto vit = value.find(member);
+				if (vit != value.end()) {
+					erase_sorted(vit->second);
+					value.erase(vit);
+					++removed;
+				}
+			}
+			return removed;
+		}
 		size_t zcard() const { return value.size(); }
 		size_t size() const { return value.size(); }
-		size_t zcount(score_type minimum, score_type maximum) const
+		bool empty() const { return value.empty(); }
+		void clear()
+		{
+			value.clear();
+			sorted.clear();
+		}
+		std::pair<const_iterator,const_iterator> zrangebyscore(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
 		{
 			if (maximum < minimum) {
-				return 0;
+				return std::make_pair(sorted.end(), sorted.end());
 			}
 			std::shared_ptr<value_type> min_value(new value_type(std::string(), minimum));
 			std::shared_ptr<value_type> max_value(new value_type(std::string(), maximum));
 			auto first = sorted.lower_bound(min_value);
 			auto last = sorted.lower_bound(max_value);
-			size_t count = std::distance(first, last);
-			while (last != sorted.end()) {
-				if (score_eq((*last)->score, maximum)) {
-					++last;
-					++count;
-				} else {
-					break;
+			if (!inclusive_minimum) {
+				while (first != sorted.end()) {
+					if (!score_eq((*first)->score, minimum)) {
+						break;
+					}
+					++first;
 				}
 			}
-			return count;
+			if (inclusive_maximum) {
+				while (last != sorted.end()) {
+					if (score_eq((*last)->score, maximum)) {
+						++last;
+					} else {
+						break;
+					}
+				}
+			}
+			return std::make_pair(first, last);
+		}
+		std::pair<const_iterator,const_iterator> zrange(size_t start, size_t stop) const
+		{
+			if (stop <= start) {
+				return std::make_pair(sorted.end(), sorted.end());
+			}
+			return std::make_pair(get_it(start), get_it(stop));
+		}
+	private:
+		const_iterator get_it(size_t index) const
+		{
+			if (sorted.size() <= index) {
+				return sorted.end();
+			}
+			if (index <= sorted.size() / 2) {
+				const_iterator it = sorted.begin();
+				for (auto i = 0; i < index; ++i) {
+					++it;
+				}
+				return it;
+			}
+			const_iterator it = sorted.end();
+			for (auto i = sorted.size(); index < i; --i) {
+				--it;
+			}
+			return it;
+		}
+	public:
+		size_t zcount(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
+		{
+			auto range = zrangebyscore(minimum, maximum, inclusive_minimum, inclusive_maximum);
+			return std::distance(range.first, range.second);
+		}
+		bool zrank(const std::string & member, size_t & rank, bool rev) const
+		{
+			auto it = value.find(member);
+			if (it == value.end()) {
+				return false;
+			}
+			auto sit = sorted.find(it->second);
+			rank = std::distance(sorted.begin(), sit);
+			if (rev) {
+				rank = value.size() - 1 - rank;
+			}
+			return true;
+		}
+		bool zscore(const std::string & member, score_type & score) const
+		{
+			auto it = value.find(member);
+			if (it == value.end()) {
+				return false;
+			}
+			score = it->second->score;
+			return true;
 		}
 		///@retval nan 中断
-		score_type incrby(const std::string & member, score_type increment)
+		score_type zincrby(const std::string & member, score_type increment)
 		{
 			if (isnan(increment)) {
 				return increment;
@@ -726,9 +812,12 @@ namespace rediscpp
 			aggregate_max,
 		};
 		///和集合
-		void zunion(const zset_type & rhs, aggregate_types aggregate)
+		void zunion(const zset_type & rhs, zset_type::score_type weight, aggregate_types aggregate)
 		{
 			if (this == &rhs) {
+				return;
+			}
+			if (rhs.empty()) {
 				return;
 			}
 			auto lit = value.begin(), lend = value.end();
@@ -738,14 +827,17 @@ namespace rediscpp
 					score_type after = lit->second->score;
 					switch (aggregate) {
 					case aggregate_min:
-						after = std::min(after, rit->second->score);
+						after = std::min(after, rit->second->score * weight);
 						break;
 					case aggregate_max:
-						after = std::max(after, rit->second->score);
+						after = std::max(after, rit->second->score * weight);
 						break;
 					case aggregate_sum:
-						after += rit->second->score;
+						after += rit->second->score * weight;
 						break;
+					}
+					if (isnan(after)) {
+						throw std::runtime_error("ERR nan score result found");
 					}
 					erase_sorted(lit->second);
 					lit->second->score = after;
@@ -756,6 +848,11 @@ namespace rediscpp
 					++lit;
 				} else {//only right, insert
 					std::shared_ptr<value_type> v(new value_type(*(rit->second)));
+					score_type after = v->score * weight;
+					if (isnan(after)) {
+						throw std::runtime_error("ERR nan score result found");
+					}
+					v->score = after;
 					value.insert(lit, std::make_pair(v->member, v));
 					sorted.insert(v);
 					++rit;
@@ -763,14 +860,26 @@ namespace rediscpp
 			}
 			while (rit != rend) {//insert
 				std::shared_ptr<value_type> v(new value_type(*(rit->second)));
+				v->score *= weight;
+				if (isnan(v->score)) {
+					throw std::runtime_error("ERR nan score result found");
+				}
 				value.insert(lit, std::make_pair(v->member, v));
 				sorted.insert(v);
+				++rit;
 			}
 		}
 		///積集合
-		void zinter(const zset_type & rhs, aggregate_types aggregate)
+		void zinter(const zset_type & rhs, score_type weight, aggregate_types aggregate)
 		{
 			if (this == &rhs) {
+				return;
+			}
+			if (empty()) {
+				return;
+			}
+			if (rhs.empty()) {
+				clear();
 				return;
 			}
 			auto lit = value.begin();
@@ -780,14 +889,17 @@ namespace rediscpp
 					score_type after = lit->second->score;
 					switch (aggregate) {
 					case aggregate_min:
-						after = std::min(after, rit->second->score);
+						after = std::min(after, rit->second->score * weight);
 						break;
 					case aggregate_max:
-						after = std::max(after, rit->second->score);
+						after = std::max(after, rit->second->score * weight);
 						break;
 					case aggregate_sum:
-						after += rit->second->score;
+						after += rit->second->score * weight;
 						break;
+					}
+					if (isnan(after)) {
+						throw std::runtime_error("ERR nan score result found");
 					}
 					erase_sorted(lit->second);
 					lit->second->score = after;
@@ -807,24 +919,6 @@ namespace rediscpp
 				erase_sorted(it->second);
 			}
 			value.erase(lit, value.end());
-		}
-		std::map<std::string, std::shared_ptr<value_type>>::const_iterator get_it(size_t index) const
-		{
-			if (value.size() <= index) {
-				return value.end();
-			}
-			if (index <= value.size() / 2) {
-				std::map<std::string, std::shared_ptr<value_type>>::const_iterator it = value.begin();
-				for (auto i = 0; i < index; ++i) {
-					++it;
-				}
-				return it;
-			}
-			std::map<std::string, std::shared_ptr<value_type>>::const_iterator it = value.end();
-			for (auto i = value.size(); index < i; --i) {
-				--it;
-			}
-			return it;
 		}
 	};
 	class database_type;
@@ -1022,6 +1116,9 @@ namespace rediscpp
 		arguments_type arguments;
 		std::vector<std::string*> keys;
 		std::vector<std::string*> values;
+		std::vector<std::string*> fields;
+		std::vector<std::string*> members;
+		std::vector<std::string*> scores;
 		int argument_count;
 		int argument_index;
 		int argument_size;
@@ -1046,6 +1143,9 @@ namespace rediscpp
 		const std::string & get_argument(int index) const { return arguments[index]; }
 		const std::vector<std::string*> & get_keys() const { return keys; }
 		const std::vector<std::string*> & get_values() const { return values; }
+		const std::vector<std::string*> & get_fields() const { return fields; }
+		const std::vector<std::string*> & get_members() const { return members; }
+		const std::vector<std::string*> & get_scores() const { return scores; }
 		void response_status(const std::string & state);
 		void response_error(const std::string & state);
 		void response_ok();
@@ -1322,7 +1422,7 @@ namespace rediscpp
 		bool api_zincrby(client_type * client);
 		bool api_zinterstore(client_type * client);
 		bool api_zrange(client_type * client);
-		bool api_zrangebystore(client_type * client);
+		bool api_zrangebyscore(client_type * client);
 		bool api_zrank(client_type * client);
 		bool api_zrem(client_type * client);
 		bool api_zremrangebyrank(client_type * client);
@@ -1332,6 +1432,10 @@ namespace rediscpp
 		bool api_zrevrank(client_type * client);
 		bool api_zscore(client_type * client);
 		bool api_zunionstore(client_type * client);
+		bool api_zoperaion_internal(client_type * client, int type);
+		bool api_zrange_internal(client_type * client, bool rev);
+		bool api_zrangebyscore_internal(client_type * client, bool rev);
+		bool api_zrank_internal(client_type * client, bool rev);
 	};
 }
 
