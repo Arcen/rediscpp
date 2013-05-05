@@ -1,5 +1,6 @@
 Redis CPP
-========================
+=========
+
 Redis server that implemented by CPP.
 
 Not released yet.
@@ -11,15 +12,15 @@ No License yet.
 * using rwlock for database
 * NO persistence
 
-* Not support API
-** CLIENT KILL, LIST, GETNAME, SETNAME
-** CONFIG GET, SET, RESETSTAT
-** SLAVEOF, SYNC, MIGRATE, RESTORE
-** INFO, MONITOR, SLOWLOG, DUMP, OBJECT
-** DEBUG OBJECT, SETFAULT
-** Scripting APIs
-** Pub/Sub APIs
-** BGREWRITEAOF, BGSAVE, LASTSAVE, SAVE
+## Not support API
+* CLIENT KILL, LIST, GETNAME, SETNAME
+* CONFIG GET, SET, RESETSTAT
+* SLAVEOF, SYNC, MIGRATE, RESTORE
+* INFO, MONITOR, SLOWLOG, DUMP, OBJECT
+* DEBUG OBJECT, SETFAULT
+* Scripting APIs
+* Pub/Sub APIs
+* BGREWRITEAOF, BGSAVE, LASTSAVE, SAVE
 
 # TODO
 * not implemented api
