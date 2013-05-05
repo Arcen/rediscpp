@@ -760,7 +760,6 @@ namespace rediscpp
 		//keys API
 		//DUMP, OBJECT
 		//MIGRATE, RESTORE
-		//SORT
 		api_map["KEYS"].set(&server_type::api_keys).argc(2).type("cp");
 		api_map["DEL"].set(&server_type::api_del).argc_gte(2).type("ck*");
 		api_map["EXISTS"].set(&server_type::api_exists).argc(2).type("ck");
@@ -774,6 +773,7 @@ namespace rediscpp
 		api_map["RENAME"].set(&server_type::api_rename).argc(3).type("ckk");
 		api_map["RENAMENX"].set(&server_type::api_renamenx).argc(3).type("ckk");
 		api_map["TYPE"].set(&server_type::api_type).argc(2).type("ck");
+		api_map["SORT"].set(&server_type::api_sort).argc_gte(2).type("ck*");//@note タイプが多すぎてパース出来ない
 		//strings api
 		api_map["GET"].set(&server_type::api_get).argc(2).type("ck");
 		api_map["SET"].set(&server_type::api_set).argc(3,8).type("ckvccccc");
@@ -917,9 +917,9 @@ namespace rediscpp
 	{
 		server.process();
 	}
-	database_write_locker::database_write_locker(database_type * database_, client_type * client)
+	database_write_locker::database_write_locker(database_type * database_, client_type * client, bool rdlock)
 		: database(database_)
-		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : write_lock_type))
+		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : (rdlock ? read_lock_type : write_lock_type)))
 	{
 	}
 	database_read_locker::database_read_locker(database_type * database_, client_type * client)

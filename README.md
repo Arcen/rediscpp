@@ -12,7 +12,6 @@ No License yet.
 * NO persistence
 
 * Not support API
-** SORT
 ** CLIENT KILL, LIST, GETNAME, SETNAME
 ** CONFIG GET, SET, RESETSTAT
 ** SLAVEOF, SYNC, MIGRATE, RESTORE
@@ -23,7 +22,7 @@ No License yet.
 ** BGREWRITEAOF, BGSAVE, LASTSAVE, SAVE
 
 # TODO
-* api SORT and etc.
+* not implemented api
 * file refactoring
 * test code
 * config file

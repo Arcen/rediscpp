@@ -94,6 +94,12 @@ namespace rediscpp
 			, size_(0)
 		{
 		}
+		list_type(std::list<std::string> && value_, const timeval_type & current)
+			: value_interface(current)
+			, value(std::move(value_))
+			, size_(value.size())
+		{
+		}
 		virtual ~list_type(){}
 		virtual std::string get_type() { return std::string("list"); }
 		const std::list<std::string> & get();
@@ -226,6 +232,7 @@ namespace rediscpp
 			}
 			return std::make_pair(sit, eit);
 		}
+		std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> get_range() const { return std::make_pair(value.begin(), value.end()); }
 	private:
 		std::pair<std::list<std::string>::iterator,std::list<std::string>::iterator> get_range_internal(size_t start, size_t end)
 		{
@@ -736,6 +743,10 @@ namespace rediscpp
 			}
 			return std::make_pair(get_it(start), get_it(stop));
 		}
+		std::pair<const_iterator,const_iterator> zrange() const
+		{
+			return std::make_pair(sorted.begin(), sorted.end());
+		}
 	private:
 		const_iterator get_it(size_t index) const
 		{
@@ -927,7 +938,7 @@ namespace rediscpp
 		database_type * database;
 		std::shared_ptr<rwlock_locker> locker;
 	public:
-		database_write_locker(database_type * database_, client_type * client);
+		database_write_locker(database_type * database_, client_type * client, bool rdlock);
 		database_type * get() { return database; }
 		database_type * operator->() { return database; }
 	};
@@ -1259,9 +1270,9 @@ namespace rediscpp
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
-		database_write_locker writable_db(int index, client_type * client) { return database_write_locker(databases.at(index).get(), client); }
+		database_write_locker writable_db(int index, client_type * client, bool rdlock = false) { return database_write_locker(databases.at(index).get(), client, rdlock); }
 		database_read_locker readable_db(int index, client_type * client) { return database_read_locker(databases.at(index).get(), client); }
-		database_write_locker writable_db(client_type * client) { return writable_db(client->get_db_index(), client); }
+		database_write_locker writable_db(client_type * client, bool rdlock = false) { return writable_db(client->get_db_index(), client, rdlock); }
 		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index(), client); }
 	private:
 		void remove_client(std::shared_ptr<client_type> client, bool now = false);
@@ -1337,6 +1348,7 @@ namespace rediscpp
 		bool api_rename(client_type * client);
 		bool api_renamenx(client_type * client);
 		bool api_type(client_type * client);
+		bool api_sort(client_type * client);
 		//strings api
 		bool api_get(client_type * client);
 		bool api_set_internal(client_type * client, bool nx, bool xx, int64_t expire);
