@@ -559,6 +559,274 @@ namespace rediscpp
 			std::set_intersection(lhs.begin(), lhs.end(), rhs.value.begin(), rhs.value.end(), std::inserter(value, value.begin()));
 		}
 	};
+	class zset_type : public value_interface
+	{
+		typedef double score_type;
+		struct value_type
+		{
+			std::string member;
+			score_type score;
+			value_type()
+				: score(0)
+			{
+			}
+			value_type(const value_type & rhs)
+				: member(rhs.member)
+				, score(rhs.score)
+			{
+			}
+			value_type(const std::string & member_)
+				: member(member_)
+				, score(0)
+			{
+			}
+			value_type(const std::string & member_, score_type score_)
+				: member(member_)
+				, score(score_)
+			{
+			}
+		};
+		static bool score_eq(score_type lhs, score_type rhs)
+		{
+			if (::finite(lhs) && ::finite(rhs)) {
+				return lhs == rhs;
+			}
+			if (isnan(lhs) || isnan(rhs)) {
+				return false;
+			}
+			if (isinf(lhs) && isinf(rhs)) {
+				return (lhs < 0) == (rhs < 0);
+			}
+			return false;
+		}
+		static bool score_less(score_type lhs, score_type rhs)
+		{
+			if (::finite(lhs) && ::finite(rhs)) {
+				return lhs < rhs;
+			}
+			if (isnan(lhs) || isnan(rhs)) {
+				return false;
+			}
+			if (isinf(lhs) && isinf(rhs)) {
+				return lhs < 0 && 0 < rhs;
+			}
+			if (isinf(lhs)) {
+				return lhs < 0;//-inf < not -inf
+			}
+			if (isinf(rhs)) {
+				return 0 < rhs;//not inf < +inf
+			}
+			return false;
+		}
+		struct score_comparer
+		{
+			bool operator()(const std::shared_ptr<value_type> & lhs, const std::shared_ptr<value_type> & rhs) const
+			{
+				score_type ls = lhs->score;
+				score_type rs = rhs->score;
+				if (!score_eq(ls, rs)) {
+					return score_less(ls, rs);
+				}
+				return lhs->member < rhs->member;
+			}
+		};
+		std::map<std::string, std::shared_ptr<value_type>> value;//値でユニークな集合
+		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//スコアで並べた状態
+	public:
+		zset_type(const timeval_type & current)
+			: value_interface(current)
+		{
+		}
+		virtual ~zset_type(){}
+		virtual std::string get_type() { return std::string("zset"); }
+	private:
+		bool erase_sorted(const std::shared_ptr<value_type> & rhs)
+		{
+			auto it = sorted.find(rhs);
+			if (it != sorted.end()) {
+				sorted.erase(it);
+			}
+			lprintf(__FILE__, __LINE__, alert_level, "zset structure broken, not found value by score");
+			return false;
+		}
+	public:
+		size_t zadd(const std::vector<score_type> & scores, const std::vector<std::string*> & members)
+		{
+			if (scores.size() != members.size()) {
+				return 0;
+			}
+			size_t created = 0;
+			auto sit = scores.begin();
+			for (auto it = members.begin(), end = members.end(); it != end; ++it, ++sit) {
+				auto & member = **it;
+				auto score = *sit;
+				std::shared_ptr<value_type> v(new value_type(member, score));
+				auto vit = value.find(member);
+				if (vit == value.end()) {
+					++created;
+					value.insert(std::make_pair(member, v));
+					sorted.insert(v);
+				} else {
+					auto old = vit->second;
+					erase_sorted(old);
+					vit->second = v;
+					sorted.insert(v);
+				}
+			}
+			return created;
+		}
+		size_t zcard() const { return value.size(); }
+		size_t size() const { return value.size(); }
+		size_t zcount(score_type minimum, score_type maximum) const
+		{
+			if (maximum < minimum) {
+				return 0;
+			}
+			std::shared_ptr<value_type> min_value(new value_type(std::string(), minimum));
+			std::shared_ptr<value_type> max_value(new value_type(std::string(), maximum));
+			auto first = sorted.lower_bound(min_value);
+			auto last = sorted.lower_bound(max_value);
+			size_t count = std::distance(first, last);
+			while (last != sorted.end()) {
+				if (score_eq((*last)->score, maximum)) {
+					++last;
+					++count;
+				} else {
+					break;
+				}
+			}
+			return count;
+		}
+		///@retval nan 中断
+		score_type incrby(const std::string & member, score_type increment)
+		{
+			if (isnan(increment)) {
+				return increment;
+			}
+			auto it = value.find(member);
+			if (it == value.end()) {
+				std::shared_ptr<value_type> v(new value_type(member, increment));
+				value.insert(std::make_pair(member, v));
+				sorted.insert(v);
+				return increment;
+			}
+			score_type after = (it->second->score + increment);
+			if (isnan(after)) {
+				return after;
+			}
+			erase_sorted(it->second);
+			it->second->score = after;
+			sorted.insert(it->second);
+			return after;
+		}
+		enum aggregate_types
+		{
+			aggregate_min = -1,
+			aggregate_sum,
+			aggregate_max,
+		};
+		///和集合
+		void zunion(const zset_type & rhs, aggregate_types aggregate)
+		{
+			if (this == &rhs) {
+				return;
+			}
+			auto lit = value.begin(), lend = value.end();
+			auto rit = rhs.value.begin(), rend = rhs.value.end();
+			while (lit != lend && rit != rend) {
+				if (lit->first == rit->first) {//union
+					score_type after = lit->second->score;
+					switch (aggregate) {
+					case aggregate_min:
+						after = std::min(after, rit->second->score);
+						break;
+					case aggregate_max:
+						after = std::max(after, rit->second->score);
+						break;
+					case aggregate_sum:
+						after += rit->second->score;
+						break;
+					}
+					erase_sorted(lit->second);
+					lit->second->score = after;
+					sorted.insert(lit->second);
+					++lit;
+					++rit;
+				} else if (lit->first < rit->first) {//only left
+					++lit;
+				} else {//only right, insert
+					std::shared_ptr<value_type> v(new value_type(*(rit->second)));
+					value.insert(lit, std::make_pair(v->member, v));
+					sorted.insert(v);
+					++rit;
+				}
+			}
+			while (rit != rend) {//insert
+				std::shared_ptr<value_type> v(new value_type(*(rit->second)));
+				value.insert(lit, std::make_pair(v->member, v));
+				sorted.insert(v);
+			}
+		}
+		///積集合
+		void zinter(const zset_type & rhs, aggregate_types aggregate)
+		{
+			if (this == &rhs) {
+				return;
+			}
+			auto lit = value.begin();
+			auto rit = rhs.value.begin(), rend = rhs.value.end();
+			while (lit != value.end() && rit != rend) {
+				if (lit->first == rit->first) {//inter
+					score_type after = lit->second->score;
+					switch (aggregate) {
+					case aggregate_min:
+						after = std::min(after, rit->second->score);
+						break;
+					case aggregate_max:
+						after = std::max(after, rit->second->score);
+						break;
+					case aggregate_sum:
+						after += rit->second->score;
+						break;
+					}
+					erase_sorted(lit->second);
+					lit->second->score = after;
+					sorted.insert(lit->second);
+					++lit;
+					++rit;
+				} else if (lit->first < rit->first) {//only left, erase
+					erase_sorted(lit->second);
+					auto eit = lit;
+					++lit;
+					value.erase(eit);
+				} else {//only right
+					++rit;
+				}
+			}
+			for (auto it = lit; it != value.end(); ++it) {//erase
+				erase_sorted(it->second);
+			}
+			value.erase(lit, value.end());
+		}
+		std::map<std::string, std::shared_ptr<value_type>>::const_iterator get_it(size_t index) const
+		{
+			if (value.size() <= index) {
+				return value.end();
+			}
+			if (index <= value.size() / 2) {
+				std::map<std::string, std::shared_ptr<value_type>>::const_iterator it = value.begin();
+				for (auto i = 0; i < index; ++i) {
+					++it;
+				}
+				return it;
+			}
+			std::map<std::string, std::shared_ptr<value_type>>::const_iterator it = value.end();
+			for (auto i = value.size(); index < i; --i) {
+				--it;
+			}
+			return it;
+		}
+	};
 	class database_type;
 	class database_write_locker
 	{
@@ -621,6 +889,7 @@ namespace rediscpp
 		std::shared_ptr<list_type> get_list(const std::string & key, const timeval_type & current) const { return get_as<list_type>(key, current); }
 		std::shared_ptr<hash_type> get_hash(const std::string & key, const timeval_type & current) const { return get_as<hash_type>(key, current); }
 		std::shared_ptr<set_type> get_set(const std::string & key, const timeval_type & current) const { return get_as<set_type>(key, current); }
+		std::shared_ptr<zset_type> get_zset(const std::string & key, const timeval_type & current) const { return get_as<zset_type>(key, current); }
 		bool erase(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);
