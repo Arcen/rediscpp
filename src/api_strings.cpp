@@ -1,22 +1,8 @@
 #include "server.h"
-#include "log.h"
+#include "type_string.h"
 
 namespace rediscpp
 {
-	string_type::string_type(const std::string & string_value_, const timeval_type & current)
-		: value_interface(current)
-		, string_value(string_value_)
-	{
-	}
-	string_type::string_type(std::string && string_value_, const timeval_type & current)
-		: value_interface(current)
-		, string_value(std::move(string_value_))
-	{
-	}
-	const std::string & string_type::get()
-	{
-		return string_value;
-	}
 	///取得
 	///@note Available since 1.0.0.
 	bool server_type::api_get(client_type * client)

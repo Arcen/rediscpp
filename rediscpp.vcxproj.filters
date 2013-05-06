@@ -71,6 +71,24 @@
     <ClCompile Include="src\api_zsets.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\type_hash.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_string.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_list.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_set.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_zset.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_interface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\network.h">
@@ -89,6 +107,24 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\thread.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_zset.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_hash.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_string.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_list.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_set.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_interface.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

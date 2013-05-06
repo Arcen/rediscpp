@@ -98,6 +98,12 @@
     <ClCompile Include="src\network.cpp" />
     <ClCompile Include="src\server.cpp" />
     <ClCompile Include="src\timeval.cpp" />
+    <ClCompile Include="src\type_hash.cpp" />
+    <ClCompile Include="src\type_interface.cpp" />
+    <ClCompile Include="src\type_list.cpp" />
+    <ClCompile Include="src\type_set.cpp" />
+    <ClCompile Include="src\type_string.cpp" />
+    <ClCompile Include="src\type_zset.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\common.h" />
@@ -106,6 +112,12 @@
     <ClInclude Include="src\server.h" />
     <ClInclude Include="src\thread.h" />
     <ClInclude Include="src\timeval.h" />
+    <ClInclude Include="src\type_hash.h" />
+    <ClInclude Include="src\type_interface.h" />
+    <ClInclude Include="src\type_list.h" />
+    <ClInclude Include="src\type_set.h" />
+    <ClInclude Include="src\type_string.h" />
+    <ClInclude Include="src\type_zset.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

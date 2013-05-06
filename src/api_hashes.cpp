@@ -1,8 +1,9 @@
 #include "server.h"
+#include "type_hash.h"
 
 namespace rediscpp
 {
-	///•¡”‚ÌƒtƒB[ƒ‹ƒh‚ğíœ
+	///è¤‡æ•°ã®ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’å‰Šé™¤
 	///@note Available since 2.0.0.
 	bool server_type::api_hdel(client_type * client)
 	{
@@ -24,7 +25,7 @@ namespace rediscpp
 		client->response_integer(removed);
 		return true;
 	}
-	///ƒtƒB[ƒ‹ƒh‚Ì‘¶İŠm”F
+	///ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã®å­˜åœ¨ç¢ºèª
 	///@note Available since 2.0.0.
 	bool server_type::api_hexists(client_type * client)
 	{
@@ -40,7 +41,7 @@ namespace rediscpp
 		client->response_integer(hash->hexists(field) ? 1 : 0);
 		return true;
 	}
-	///’l‚Ìæ“¾
+	///å€¤ã®å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hget(client_type * client)
 	{
@@ -61,7 +62,7 @@ namespace rediscpp
 		client->response_bulk(r.first);
 		return true;
 	}
-	///•¡”‚Ì’l‚Ìæ“¾
+	///è¤‡æ•°ã®å€¤ã®å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hmget(client_type * client)
 	{
@@ -86,7 +87,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///’·‚³‚Ìæ“¾
+	///é•·ã•ã®å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hlen(client_type * client)
 	{
@@ -101,19 +102,19 @@ namespace rediscpp
 		client->response_integer(hash->size());
 		return true;
 	}
-	///ƒL[‚Æ’l‚Ì‘Sæ“¾
+	///ã‚­ãƒ¼ã¨å€¤ã®å…¨å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hgetall(client_type * client)
 	{
 		return api_hgetall_internal(client, true, true);
 	}
-	///ƒL[‚Ì‘Sæ“¾
+	///ã‚­ãƒ¼ã®å…¨å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hkeys(client_type * client)
 	{
 		return api_hgetall_internal(client, true, false);
 	}
-	///’l‚Ì‘Sæ“¾
+	///å€¤ã®å…¨å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_hvals(client_type * client)
 	{
@@ -156,7 +157,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///’l‚Ì‰ÁZ
+	///å€¤ã®åŠ ç®—
 	///@note Available since 2.0.0.
 	bool server_type::api_hincrby(client_type * client)
 	{
@@ -192,7 +193,7 @@ namespace rediscpp
 		client->response_integer(newval);
 		return true;
 	}
-	///’l‚Ì‰ÁZ
+	///å€¤ã®åŠ ç®—
 	///@note Available since 2.6.0.
 	bool server_type::api_hincrbyfloat(client_type * client)
 	{
@@ -222,13 +223,13 @@ namespace rediscpp
 		client->response_bulk(newstr);
 		return true;
 	}
-	///’l‚Ìİ’è
+	///å€¤ã®è¨­å®š
 	///@note Available since 2.0.0.
 	bool server_type::api_hset(client_type * client)
 	{
 		return api_hset_internal(client, false);
 	}
-	///‘¶İ‚µ‚È‚¯‚ê‚Î’l‚Ìİ’è
+	///å­˜åœ¨ã—ãªã‘ã‚Œã°å€¤ã®è¨­å®š
 	///@note Available since 2.0.0.
 	bool server_type::api_hsetnx(client_type * client)
 	{

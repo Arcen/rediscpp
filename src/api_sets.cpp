@@ -1,4 +1,5 @@
 #include "server.h"
+#include "type_set.h"
 
 namespace rediscpp
 {

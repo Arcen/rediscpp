@@ -1,4 +1,9 @@
 #include "server.h"
+#include "type_hash.h"
+#include "type_list.h"
+#include "type_set.h"
+#include "type_string.h"
+#include "type_zset.h"
 #include "log.h"
 #include <algorithm>
 #include <ctype.h>
@@ -927,4 +932,9 @@ namespace rediscpp
 		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : read_lock_type))
 	{
 	}
+	std::shared_ptr<string_type> database_type::get_string(const std::string & key, const timeval_type & current) const { return get_as<string_type>(key, current); }
+	std::shared_ptr<list_type> database_type::get_list(const std::string & key, const timeval_type & current) const { return get_as<list_type>(key, current); }
+	std::shared_ptr<hash_type> database_type::get_hash(const std::string & key, const timeval_type & current) const { return get_as<hash_type>(key, current); }
+	std::shared_ptr<set_type> database_type::get_set(const std::string & key, const timeval_type & current) const { return get_as<set_type>(key, current); }
+	std::shared_ptr<zset_type> database_type::get_zset(const std::string & key, const timeval_type & current) const { return get_as<zset_type>(key, current); }
 }

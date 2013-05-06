@@ -15,6 +15,12 @@ rediscpp_SOURCES = \
     api_hashes.cpp \
     api_sets.cpp \
     api_zsets.cpp \
+    type_interface.cpp \
+    type_hash.cpp \
+    type_list.cpp \
+    type_set.cpp \
+    type_string.cpp \
+    type_zset.cpp \
     main.cpp
 
 rediscpp_CPPFLAGS = -D_LARGEFILE64_SOURCE -D__STDC_FORMAT_MACROS -std=c++0x

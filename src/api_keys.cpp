@@ -1,6 +1,9 @@
 #include "server.h"
-#include "log.h"
-#include <algorithm>
+#include "type_string.h"
+#include "type_hash.h"
+#include "type_list.h"
+#include "type_set.h"
+#include "type_zset.h"
 
 namespace rediscpp
 {

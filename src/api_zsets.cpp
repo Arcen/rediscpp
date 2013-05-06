@@ -1,4 +1,5 @@
 #include "server.h"
+#include "type_zset.h"
 
 namespace rediscpp
 {

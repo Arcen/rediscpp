@@ -1,4 +1,5 @@
 #include "server.h"
+#include "type_list.h"
 
 namespace rediscpp
 {
@@ -36,7 +37,7 @@ namespace rediscpp
 			auto & key = **it;
 			if (in_blocking) {
 				//ブロック中はリスト以外が設定されても待つ
-				std::shared_ptr<value_interface> value = db->get(key, current);
+				std::shared_ptr<type_interface> value = db->get(key, current);
 				if (!value || !std::dynamic_pointer_cast<list_type>(value)) {
 					continue;
 				}
