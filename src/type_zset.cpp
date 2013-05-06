@@ -3,26 +3,26 @@
 
 namespace rediscpp
 {
-	zset_type::value_type::value_type()
+	type_zset::value_type::value_type()
 		: score(0)
 	{
 	}
-	zset_type::value_type::value_type(const value_type & rhs)
+	type_zset::value_type::value_type(const value_type & rhs)
 		: member(rhs.member)
 		, score(rhs.score)
 	{
 	}
-	zset_type::value_type::value_type(const std::string & member_)
+	type_zset::value_type::value_type(const std::string & member_)
 		: member(member_)
 		, score(0)
 	{
 	}
-	zset_type::value_type::value_type(const std::string & member_, score_type score_)
+	type_zset::value_type::value_type(const std::string & member_, score_type score_)
 		: member(member_)
 		, score(score_)
 	{
 	}
-	bool zset_type::score_eq(score_type lhs, score_type rhs)
+	bool type_zset::score_eq(score_type lhs, score_type rhs)
 	{
 		if (::finite(lhs) && ::finite(rhs)) {
 			return lhs == rhs;
@@ -35,7 +35,7 @@ namespace rediscpp
 		}
 		return false;
 	}
-	bool zset_type::score_less(score_type lhs, score_type rhs)
+	bool type_zset::score_less(score_type lhs, score_type rhs)
 	{
 		if (::finite(lhs) && ::finite(rhs)) {
 			return lhs < rhs;
@@ -54,7 +54,7 @@ namespace rediscpp
 		}
 		return false;
 	}
-	bool zset_type::score_comparer::operator()(const std::shared_ptr<value_type> & lhs, const std::shared_ptr<value_type> & rhs) const
+	bool type_zset::score_comparer::operator()(const std::shared_ptr<value_type> & lhs, const std::shared_ptr<value_type> & rhs) const
 	{
 		score_type ls = lhs->score;
 		score_type rs = rhs->score;
@@ -63,18 +63,18 @@ namespace rediscpp
 		}
 		return lhs->member < rhs->member;
 	}
-	zset_type::zset_type(const timeval_type & current)
+	type_zset::type_zset(const timeval_type & current)
 		: type_interface(current)
 	{
 	}
-	zset_type::~zset_type()
+	type_zset::~type_zset()
 	{
 	}
-	std::string zset_type::get_type()
+	std::string type_zset::get_type()
 	{
 		return std::string("zset");
 	}
-	bool zset_type::erase_sorted(const std::shared_ptr<value_type> & rhs)
+	bool type_zset::erase_sorted(const std::shared_ptr<value_type> & rhs)
 	{
 		auto it = sorted.find(rhs);
 		if (it != sorted.end()) {
@@ -84,7 +84,7 @@ namespace rediscpp
 		lprintf(__FILE__, __LINE__, alert_level, "zset structure broken, %s not found value by score %f", rhs->member.c_str(), rhs->score);
 		return false;
 	}
-	size_t zset_type::zadd(const std::vector<score_type> & scores, const std::vector<std::string*> & members)
+	size_t type_zset::zadd(const std::vector<score_type> & scores, const std::vector<std::string*> & members)
 	{
 		if (scores.size() != members.size()) {
 			return 0;
@@ -109,7 +109,7 @@ namespace rediscpp
 		}
 		return created;
 	}
-	size_t zset_type::zrem(const std::vector<std::string*> & members)
+	size_t type_zset::zrem(const std::vector<std::string*> & members)
 	{
 		size_t removed = 0;
 		for (auto it = members.begin(), end = members.end(); it != end; ++it) {
@@ -123,24 +123,24 @@ namespace rediscpp
 		}
 		return removed;
 	}
-	size_t zset_type::zcard() const
+	size_t type_zset::zcard() const
 	{
 		return value.size();
 	}
-	size_t zset_type::size() const
+	size_t type_zset::size() const
 	{
 		return value.size();
 	}
-	bool zset_type::empty() const
+	bool type_zset::empty() const
 	{
 		return value.empty();
 	}
-	void zset_type::clear()
+	void type_zset::clear()
 	{
 		value.clear();
 		sorted.clear();
 	}
-	std::pair<zset_type::const_iterator,zset_type::const_iterator> zset_type::zrangebyscore(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
+	std::pair<type_zset::const_iterator,type_zset::const_iterator> type_zset::zrangebyscore(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
 	{
 		if (maximum < minimum) {
 			return std::make_pair(sorted.end(), sorted.end());
@@ -168,18 +168,18 @@ namespace rediscpp
 		}
 		return std::make_pair(first, last);
 	}
-	std::pair<zset_type::const_iterator,zset_type::const_iterator> zset_type::zrange(size_t start, size_t stop) const
+	std::pair<type_zset::const_iterator,type_zset::const_iterator> type_zset::zrange(size_t start, size_t stop) const
 	{
 		if (stop <= start) {
 			return std::make_pair(sorted.end(), sorted.end());
 		}
 		return std::make_pair(get_it(start), get_it(stop));
 	}
-	std::pair<zset_type::const_iterator,zset_type::const_iterator> zset_type::zrange() const
+	std::pair<type_zset::const_iterator,type_zset::const_iterator> type_zset::zrange() const
 	{
 		return std::make_pair(sorted.begin(), sorted.end());
 	}
-	zset_type::const_iterator zset_type::get_it(size_t index) const
+	type_zset::const_iterator type_zset::get_it(size_t index) const
 	{
 		if (sorted.size() <= index) {
 			return sorted.end();
@@ -197,12 +197,12 @@ namespace rediscpp
 		}
 		return it;
 	}
-	size_t zset_type::zcount(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
+	size_t type_zset::zcount(score_type minimum, score_type maximum, bool inclusive_minimum, bool inclusive_maximum) const
 	{
 		auto range = zrangebyscore(minimum, maximum, inclusive_minimum, inclusive_maximum);
 		return std::distance(range.first, range.second);
 	}
-	bool zset_type::zrank(const std::string & member, size_t & rank, bool rev) const
+	bool type_zset::zrank(const std::string & member, size_t & rank, bool rev) const
 	{
 		auto it = value.find(member);
 		if (it == value.end()) {
@@ -215,7 +215,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	bool zset_type::zscore(const std::string & member, score_type & score) const
+	bool type_zset::zscore(const std::string & member, score_type & score) const
 	{
 		auto it = value.find(member);
 		if (it == value.end()) {
@@ -225,7 +225,7 @@ namespace rediscpp
 		return true;
 	}
 	///@retval nan ’†’f
-	zset_type::score_type zset_type::zincrby(const std::string & member, score_type increment)
+	type_zset::score_type type_zset::zincrby(const std::string & member, score_type increment)
 	{
 		if (isnan(increment)) {
 			return increment;
@@ -247,7 +247,7 @@ namespace rediscpp
 		return after;
 	}
 	///˜aW‡
-	void zset_type::zunion(const zset_type & rhs, zset_type::score_type weight, aggregate_types aggregate)
+	void type_zset::zunion(const type_zset & rhs, type_zset::score_type weight, aggregate_types aggregate)
 	{
 		if (this == &rhs) {
 			return;
@@ -305,7 +305,7 @@ namespace rediscpp
 		}
 	}
 	///ÏW‡
-	void zset_type::zinter(const zset_type & rhs, score_type weight, aggregate_types aggregate)
+	void type_zset::zinter(const type_zset & rhs, score_type weight, aggregate_types aggregate)
 	{
 		if (this == &rhs) {
 			return;

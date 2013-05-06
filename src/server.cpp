@@ -932,9 +932,9 @@ namespace rediscpp
 		, locker(new rwlock_locker(database_->rwlock, client && client->in_exec() ? no_lock_type : read_lock_type))
 	{
 	}
-	std::shared_ptr<string_type> database_type::get_string(const std::string & key, const timeval_type & current) const { return get_as<string_type>(key, current); }
-	std::shared_ptr<list_type> database_type::get_list(const std::string & key, const timeval_type & current) const { return get_as<list_type>(key, current); }
-	std::shared_ptr<hash_type> database_type::get_hash(const std::string & key, const timeval_type & current) const { return get_as<hash_type>(key, current); }
-	std::shared_ptr<set_type> database_type::get_set(const std::string & key, const timeval_type & current) const { return get_as<set_type>(key, current); }
-	std::shared_ptr<zset_type> database_type::get_zset(const std::string & key, const timeval_type & current) const { return get_as<zset_type>(key, current); }
+	std::shared_ptr<type_string> database_type::get_string(const std::string & key, const timeval_type & current) const { return get_as<type_string>(key, current); }
+	std::shared_ptr<type_list> database_type::get_list(const std::string & key, const timeval_type & current) const { return get_as<type_list>(key, current); }
+	std::shared_ptr<type_hash> database_type::get_hash(const std::string & key, const timeval_type & current) const { return get_as<type_hash>(key, current); }
+	std::shared_ptr<type_set> database_type::get_set(const std::string & key, const timeval_type & current) const { return get_as<type_set>(key, current); }
+	std::shared_ptr<type_zset> database_type::get_zset(const std::string & key, const timeval_type & current) const { return get_as<type_zset>(key, current); }
 }

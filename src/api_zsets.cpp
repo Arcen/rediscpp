@@ -12,13 +12,13 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & scores = client->get_scores();
 		auto & members = client->get_members();
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		bool created = false;
 		if (!zset) {
-			zset.reset(new zset_type(current));
+			zset.reset(new type_zset(current));
 			created = true;
 		}
-		std::vector<zset_type::score_type> scores_(scores.size());
+		std::vector<type_zset::score_type> scores_(scores.size());
 		for (size_t i = 0, n = scores.size(); i < n; ++i) {
 			bool is_valid = true;
 			scores_[i] = atod(*scores[i], is_valid);
@@ -42,7 +42,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_integer0();
 			return 0;
@@ -69,16 +69,16 @@ namespace rediscpp
 			maximum = maximum.substr(1);
 		}
 		bool is_valid = true;
-		zset_type::score_type minimum_score = atod(minimum, is_valid);
+		type_zset::score_type minimum_score = atod(minimum, is_valid);
 		if (!is_valid || isnan(minimum_score)) {
 			throw std::runtime_error("ERR min is not valid");
 		}
-		zset_type::score_type maximum_score = atod(maximum, is_valid);
+		type_zset::score_type maximum_score = atod(maximum, is_valid);
 		if (!is_valid || isnan(maximum_score)) {
 			throw std::runtime_error("ERR max is not valid");
 		}
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_integer0();
 			return 0;
@@ -96,18 +96,18 @@ namespace rediscpp
 		auto member = client->get_argument(3);
 		auto current = client->get_time();
 		bool is_valid = true;
-		zset_type::score_type increment_score = atod(increment, is_valid);
+		type_zset::score_type increment_score = atod(increment, is_valid);
 		if (!is_valid || isnan(increment_score)) {
 			throw std::runtime_error("ERR increment is not valid");
 		}
 		auto db = writable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		bool created = false;
 		if (!zset) {
-			zset.reset(new zset_type(current));
+			zset.reset(new type_zset(current));
 			created = true;
 		}
-		zset_type::score_type result_score = zset->zincrby(member, increment_score);
+		type_zset::score_type result_score = zset->zincrby(member, increment_score);
 		if (isnan(result_score)) {
 			throw std::runtime_error("ERR nan by increment");
 		}
@@ -149,7 +149,7 @@ namespace rediscpp
 			keys[i] = & arguments[i+parsed];
 		}
 		parsed += numkey;
-		std::vector<zset_type::score_type> weights(numkey, 1.0);
+		std::vector<type_zset::score_type> weights(numkey, 1.0);
 		if (parsed < arguments.size()) {
 			std::string keyword = arguments[parsed];
 			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
@@ -167,7 +167,7 @@ namespace rediscpp
 				parsed += weights.size();
 			}
 		}
-		zset_type::aggregate_types aggregate = zset_type::aggregate_sum;
+		type_zset::aggregate_types aggregate = type_zset::aggregate_sum;
 		if (parsed < arguments.size()) {
 			std::string keyword = arguments[parsed];
 			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
@@ -180,9 +180,9 @@ namespace rediscpp
 				std::transform(type.begin(), type.end(), type.begin(), toupper);
 				if (type == "SUM") {
 				} else if (type == "MAX") {
-					aggregate = zset_type::aggregate_max;
+					aggregate = type_zset::aggregate_max;
 				} else if (type == "MIN") {
-					aggregate = zset_type::aggregate_min;
+					aggregate = type_zset::aggregate_min;
 				} else {
 					throw std::runtime_error("ERR aggregate type not valid");
 				}
@@ -194,12 +194,12 @@ namespace rediscpp
 		}
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<zset_type> zset(new zset_type(current));
+		std::shared_ptr<type_zset> zset(new type_zset(current));
 		bool first = true;
 		auto wit = weights.begin();
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it, ++wit) {
 			auto & key = **it;
-			std::shared_ptr<zset_type> rhs = db->get_zset(key, current);
+			std::shared_ptr<type_zset> rhs = db->get_zset(key, current);
 			if (first || type) {
 				first = false;
 				if (rhs) {
@@ -256,7 +256,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR stop is not valid integer");
 		}
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_null();
 			return true;
@@ -327,11 +327,11 @@ namespace rediscpp
 			maximum = maximum.substr(1);
 		}
 		bool is_valid = true;
-		zset_type::score_type minimum_score = atod(minimum, is_valid);
+		type_zset::score_type minimum_score = atod(minimum, is_valid);
 		if (!is_valid || isnan(minimum_score)) {
 			throw std::runtime_error("ERR min is not valid");
 		}
-		zset_type::score_type maximum_score = atod(maximum, is_valid);
+		type_zset::score_type maximum_score = atod(maximum, is_valid);
 		if (!is_valid || isnan(maximum_score)) {
 			throw std::runtime_error("ERR max is not valid");
 		}
@@ -373,7 +373,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR syntax error");
 		}
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_null();
 			return true;
@@ -448,7 +448,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & member = client->get_argument(2);
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_null();
 			return true;
@@ -470,12 +470,12 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & member = client->get_argument(2);
 		auto db = readable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_null();
 			return true;
 		}
-		zset_type::score_type score;
+		type_zset::score_type score;
 		if (!zset->zscore(member, score)) {
 			client->response_null();
 			return true;
@@ -492,7 +492,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & members = client->get_members();
 		auto db = writable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_integer0();
 			return true;
@@ -524,7 +524,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR stop is not valid integer");
 		}
 		auto db = writable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_integer0();
 			return true;
@@ -578,16 +578,16 @@ namespace rediscpp
 			maximum = maximum.substr(1);
 		}
 		bool is_valid = true;
-		zset_type::score_type minimum_score = atod(minimum, is_valid);
+		type_zset::score_type minimum_score = atod(minimum, is_valid);
 		if (!is_valid || isnan(minimum_score)) {
 			throw std::runtime_error("ERR min is not valid");
 		}
-		zset_type::score_type maximum_score = atod(maximum, is_valid);
+		type_zset::score_type maximum_score = atod(maximum, is_valid);
 		if (!is_valid || isnan(maximum_score)) {
 			throw std::runtime_error("ERR max is not valid");
 		}
 		auto db = writable_db(client);
-		std::shared_ptr<zset_type> zset = db->get_zset(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		if (!zset) {
 			client->response_integer0();
 			return true;

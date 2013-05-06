@@ -2,16 +2,16 @@
 
 namespace rediscpp
 {
-	set_type::set_type(const timeval_type & current)
+	type_set::type_set(const timeval_type & current)
 		: type_interface(current)
 	{
 	}
-	set_type::~set_type(){}
-	std::string set_type::get_type()
+	type_set::~type_set(){}
+	std::string type_set::get_type()
 	{
 		return std::string("set");
 	}
-	size_t set_type::sadd(const std::vector<std::string*> & members)
+	size_t type_set::sadd(const std::vector<std::string*> & members)
 	{
 		size_t added = 0;
 		for (auto it = members.begin(), end = members.end(); it != end; ++it) {
@@ -22,19 +22,19 @@ namespace rediscpp
 		}
 		return added;
 	}
-	size_t set_type::scard() const
+	size_t type_set::scard() const
 	{
 		return value.size();
 	}
-	bool set_type::sismember(const std::string & member) const
+	bool type_set::sismember(const std::string & member) const
 	{
 		return value.find(member) != value.end();
 	}
-	std::pair<std::set<std::string>::const_iterator,std::set<std::string>::const_iterator> set_type::smembers() const
+	std::pair<std::set<std::string>::const_iterator,std::set<std::string>::const_iterator> type_set::smembers() const
 	{
 		return std::make_pair(value.begin(), value.end());
 	}
-	size_t set_type::srem(const std::vector<std::string*> & members)
+	size_t type_set::srem(const std::vector<std::string*> & members)
 	{
 		size_t removed = 0;
 		for (auto it = members.begin(), end = members.end(); it != end; ++it) {
@@ -47,7 +47,7 @@ namespace rediscpp
 		}
 		return removed;
 	}
-	bool set_type::erase(const std::string & member)
+	bool type_set::erase(const std::string & member)
 	{
 		auto vit = value.find(member);
 		if (vit != value.end()) {
@@ -56,11 +56,11 @@ namespace rediscpp
 		}
 		return false;
 	}
-	bool set_type::insert(const std::string & member)
+	bool type_set::insert(const std::string & member)
 	{
 		return value.insert(member).second;
 	}
-	std::string set_type::random_key(const std::string & low, const std::string & high)
+	std::string type_set::random_key(const std::string & low, const std::string & high)
 	{
 		if (low.empty() || high.empty() || ! (low < high)) {
 			throw std::runtime_error(format("random_key argument [%s] and [%s]", low.c_str(), high.c_str()));
@@ -94,7 +94,7 @@ namespace rediscpp
 		}
 		return result;
 	}
-	std::set<std::string>::const_iterator set_type::srandmember() const
+	std::set<std::string>::const_iterator type_set::srandmember() const
 	{
 		auto it = value.begin();
 		std::advance(it, rand() % value.size());
@@ -128,7 +128,7 @@ namespace rediscpp
 		/*/
 	}
 	///重複を許してcount個の要素を選択する
-	bool set_type::set_type::srandmember(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
+	bool type_set::type_set::srandmember(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
 	{
 		result.clear();
 		if (count == 0) {
@@ -144,7 +144,7 @@ namespace rediscpp
 		return true;
 	}
 	///重複を許さずにcount個の要素を選択する
-	bool set_type::srandmember_distinct(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
+	bool type_set::srandmember_distinct(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
 	{
 		result.clear();
 		if (value.size() < count) {
@@ -163,26 +163,26 @@ namespace rediscpp
 		}
 		return true;
 	}
-	bool set_type::empty() const
+	bool type_set::empty() const
 	{
 		return value.empty();
 	}
-	size_t set_type::size() const
+	size_t type_set::size() const
 	{
 		return value.size();
 	}
-	void set_type::clear()
+	void type_set::clear()
 	{
 		value.clear();
 	}
-	void set_type::sunion(const set_type & rhs)
+	void type_set::sunion(const type_set & rhs)
 	{
 		if (this == &rhs) {
 			return;
 		}
 		value.insert(rhs.value.begin(), rhs.value.end());
 	}
-	void set_type::sdiff(const set_type & rhs)
+	void type_set::sdiff(const type_set & rhs)
 	{
 		if (this == &rhs) {
 			clear();
@@ -192,7 +192,7 @@ namespace rediscpp
 		lhs.swap(value);
 		std::set_difference(lhs.begin(), lhs.end(), rhs.value.begin(), rhs.value.end(), std::inserter(value, value.begin()));
 	}
-	void set_type::sinter(const set_type & rhs)
+	void type_set::sinter(const type_set & rhs)
 	{
 		if (this == &rhs) {
 			return;

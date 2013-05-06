@@ -2,18 +2,18 @@
 
 namespace rediscpp
 {
-	hash_type::hash_type(const timeval_type & current)
+	type_hash::type_hash(const timeval_type & current)
 		: type_interface(current)
 	{
 	}
-	hash_type::~hash_type()
+	type_hash::~type_hash()
 	{
 	}
-	std::string hash_type::get_type()
+	std::string type_hash::get_type()
 	{
 		return std::string("hash");
 	}
-	size_t hash_type::hdel(const std::vector<std::string*> & fields)
+	size_t type_hash::hdel(const std::vector<std::string*> & fields)
 	{
 		size_t removed = 0;
 		for (auto it = fields.begin(), end = fields.end(); it != end; ++it) {
@@ -26,15 +26,15 @@ namespace rediscpp
 		}
 		return removed;
 	}
-	bool hash_type::hexists(const std::string field) const
+	bool type_hash::hexists(const std::string field) const
 	{
 		return value.find(field) != value.end();
 	}
-	bool hash_type::empty() const
+	bool type_hash::empty() const
 	{
 		return value.empty();
 	}
-	std::pair<std::string,bool> hash_type::hget(const std::string field) const
+	std::pair<std::string,bool> type_hash::hget(const std::string field) const
 	{
 		auto it = value.find(field);
 		if (it != value.end()) {
@@ -42,15 +42,15 @@ namespace rediscpp
 		}
 		return std::make_pair(std::string(), false);
 	}
-	std::pair<std::unordered_map<std::string, std::string>::const_iterator,std::unordered_map<std::string, std::string>::const_iterator> hash_type::hgetall() const
+	std::pair<std::unordered_map<std::string, std::string>::const_iterator,std::unordered_map<std::string, std::string>::const_iterator> type_hash::hgetall() const
 	{
 		return std::make_pair(value.begin(), value.end());
 	}
-	size_t hash_type::size() const
+	size_t type_hash::size() const
 	{
 		return value.size();
 	}
-	bool hash_type::hset(const std::string & field, const std::string & val, bool nx)
+	bool type_hash::hset(const std::string & field, const std::string & val, bool nx)
 	{
 		auto it = value.find(field);
 		if (it != value.end()) {

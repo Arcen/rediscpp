@@ -5,12 +5,12 @@
 
 namespace rediscpp
 {
-	class hash_type : public type_interface
+	class type_hash : public type_interface
 	{
 		std::unordered_map<std::string, std::string> value;
 	public:
-		hash_type(const timeval_type & current);
-		virtual ~hash_type();
+		type_hash(const timeval_type & current);
+		virtual ~type_hash();
 		virtual std::string get_type();
 		size_t hdel(const std::vector<std::string*> & fields);
 		bool hexists(const std::string field) const;

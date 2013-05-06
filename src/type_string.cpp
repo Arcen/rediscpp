@@ -2,41 +2,41 @@
 
 namespace rediscpp
 {
-	string_type::string_type(const std::string & string_value_, const timeval_type & current)
+	type_string::type_string(const std::string & string_value_, const timeval_type & current)
 		: type_interface(current)
 		, string_value(string_value_)
 	{
 	}
-	string_type::string_type(std::string && string_value_, const timeval_type & current)
+	type_string::type_string(std::string && string_value_, const timeval_type & current)
 		: type_interface(current)
 		, string_value(std::move(string_value_))
 	{
 	}
-	const std::string & string_type::get()
+	const std::string & type_string::get()
 	{
 		return string_value;
 	}
-	string_type::~string_type()
+	type_string::~type_string()
 	{
 	}
-	std::string string_type::get_type()
+	std::string type_string::get_type()
 	{
 		return std::string("string");
 	}
-	std::string & string_type::ref()
+	std::string & type_string::ref()
 	{
 		return string_value;
 	}
-	void string_type::set(const std::string & str)
+	void type_string::set(const std::string & str)
 	{
 		string_value = str;
 	}
-	int64_t string_type::append(const std::string & str)
+	int64_t type_string::append(const std::string & str)
 	{
 		string_value += str;
 		return string_value.size();
 	}
-	int64_t string_type::setrange(size_t offset, const std::string & str)
+	int64_t type_string::setrange(size_t offset, const std::string & str)
 	{
 		size_t new_size = offset + str.size();
 		if (string_value.size() < new_size) {

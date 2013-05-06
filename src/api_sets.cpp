@@ -11,10 +11,10 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = writable_db(client);
 		auto & members = client->get_values();
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		bool created = false;
 		if (!set) {
-			set.reset(new set_type(current));
+			set.reset(new type_set(current));
 			created = true;
 		}
 		int64_t added = set->sadd(members);
@@ -33,7 +33,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set) {
 			client->response_integer0();
 			return true;
@@ -50,7 +50,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto & member = client->get_argument(2);
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (set && set->sismember(member)) {
 			client->response_integer1();
 		} else {
@@ -65,7 +65,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set) {
 			client->response_null();
 			return true;
@@ -86,8 +86,8 @@ namespace rediscpp
 		auto & member = client->get_argument(3);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<set_type> srcset = db->get_set(srckey, current);
-		std::shared_ptr<set_type> dstset = db->get_set(destkey, current);
+		std::shared_ptr<type_set> srcset = db->get_set(srckey, current);
+		std::shared_ptr<type_set> dstset = db->get_set(destkey, current);
 		if (!srcset) {
 			client->response_integer0();
 			return true;
@@ -103,7 +103,7 @@ namespace rediscpp
 		}
 		bool inserted = false;
 		if (!dstset) {
-			dstset.reset(new set_type(current));
+			dstset.reset(new type_set(current));
 			inserted = dstset->insert(member);
 			db->replace(destkey, dstset);
 		} else {
@@ -131,7 +131,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set || set->empty()) {
 			client->response_null();
 			return true;
@@ -161,7 +161,7 @@ namespace rediscpp
 		if (!is_valid) {
 			throw std::runtime_error("ERR count is not valid integer");
 		}
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set || set->empty()) {
 			client->response_null();
 			return true;
@@ -187,7 +187,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & members = client->get_values();
 		auto db = writable_db(client);
-		std::shared_ptr<set_type> set = db->get_set(key, current);
+		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set || set->empty()) {
 			client->response_integer0();
 			return true;
@@ -235,7 +235,7 @@ namespace rediscpp
 		auto & argumens = client->get_arguments();
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<set_type> result(new set_type(current));
+		std::shared_ptr<type_set> result(new type_set(current));
 		auto it = keys.begin();
 		auto end = keys.end();
 		std::string destination;
@@ -247,7 +247,7 @@ namespace rediscpp
 			}
 		}
 		{
-			std::shared_ptr<set_type> set = db->get_set(**it, current);
+			std::shared_ptr<type_set> set = db->get_set(**it, current);
 			if (set) {
 				result->sunion(*set);
 			}
@@ -255,21 +255,21 @@ namespace rediscpp
 		}
 		if (type < 0) {
 			for (; it != end; ++it) {
-				std::shared_ptr<set_type> set = db->get_set(**it, current);
+				std::shared_ptr<type_set> set = db->get_set(**it, current);
 				if (set) {
 					result->sdiff(*set);
 				}
 			}
 		} else if (0 < type) {
 			for (; it != end; ++it) {
-				std::shared_ptr<set_type> set = db->get_set(**it, current);
+				std::shared_ptr<type_set> set = db->get_set(**it, current);
 				if (set) {
 					result->sunion(*set);
 				}
 			}
 		} else {
 			for (; it != end; ++it) {
-				std::shared_ptr<set_type> set = db->get_set(**it, current);
+				std::shared_ptr<type_set> set = db->get_set(**it, current);
 				if (set) {
 					result->sinter(*set);
 				}

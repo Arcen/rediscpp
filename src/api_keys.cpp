@@ -345,12 +345,12 @@ namespace rediscpp
 				auto by_key = pattern.get_key(value);
 				auto by_value = db->get(by_key, current);
 				if (!pattern.has_field) {
-					auto by_value_str = std::dynamic_pointer_cast<string_type>(by_value);
+					auto by_value_str = std::dynamic_pointer_cast<type_string>(by_value);
 					if (by_value_str) {
 						comp_value = by_value_str->get();
 					}
 				} else {
-					auto by_value_hash = std::dynamic_pointer_cast<hash_type>(by_value);
+					auto by_value_hash = std::dynamic_pointer_cast<type_hash>(by_value);
 					if (by_value_hash) {
 						auto pair = by_value_hash->hget(pattern.field);
 						if (pair.second) {
@@ -493,9 +493,9 @@ namespace rediscpp
 		size_t values_size = 0;
 		std::vector<std::string> values;
 		if (value.get()) {
-			std::shared_ptr<list_type> list = std::dynamic_pointer_cast<list_type>(value);
-			std::shared_ptr<set_type> set = std::dynamic_pointer_cast<set_type>(value);
-			std::shared_ptr<zset_type> zset = std::dynamic_pointer_cast<zset_type>(value);
+			std::shared_ptr<type_list> list = std::dynamic_pointer_cast<type_list>(value);
+			std::shared_ptr<type_set> set = std::dynamic_pointer_cast<type_set>(value);
+			std::shared_ptr<type_zset> zset = std::dynamic_pointer_cast<type_zset>(value);
 			if (list) {
 				auto range = list->get_range();
 				values.reserve(list->size());
@@ -550,14 +550,14 @@ namespace rediscpp
 				}
 				auto val = db->get(key, current);
 				if (!pattern.has_field) {
-					auto strval = std::dynamic_pointer_cast<string_type>(val);
+					auto strval = std::dynamic_pointer_cast<type_string>(val);
 					if (strval) {
 						list_values.push_back(strval->get());
 						nulls.push_back(false);
 						continue;
 					}
 				} else {
-					auto hashval = std::dynamic_pointer_cast<hash_type>(val);
+					auto hashval = std::dynamic_pointer_cast<type_hash>(val);
 					if (hashval) {
 						auto v = hashval->hget(pattern.field);
 						if (v.second) {
@@ -572,7 +572,7 @@ namespace rediscpp
 			}
 		}
 		values.clear();
-		std::shared_ptr<list_type> result(new list_type(std::move(list_values), current));
+		std::shared_ptr<type_list> result(new type_list(std::move(list_values), current));
 		if (store) {
 			client->response_integer(result->size());
 		} else {

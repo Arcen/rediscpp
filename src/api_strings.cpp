@@ -108,7 +108,7 @@ namespace rediscpp
 				return true;
 			}
 		}
-		std::shared_ptr<string_type> str(new string_type(value, current));
+		std::shared_ptr<type_string> str(new type_string(value, current));
 		if (0 <= expire) {
 			timeval_type tv = current;
 			tv.add_msec(expire);
@@ -150,7 +150,7 @@ namespace rediscpp
 			now->update(current);
 			client->response_integer(len);
 		} else {
-			std::shared_ptr<string_type> str(new string_type(value, current));
+			std::shared_ptr<type_string> str(new type_string(value, current));
 			db->replace(key, str);
 			client->response_integer(value.size());
 		}
@@ -204,7 +204,7 @@ namespace rediscpp
 		auto value = db->get_string(key, current);
 		bool create = (!value);
 		if (create) {
-			value.reset(new string_type(std::string(), current));
+			value.reset(new type_string(std::string(), current));
 		}
 		int64_t len = value->setrange(offset, newstr);
 		if (create) {
@@ -228,7 +228,7 @@ namespace rediscpp
 		auto value = db->get_string(key, current);
 		bool create = (!value);
 		if (create) {
-			value.reset(new string_type(std::move(newstr), current));
+			value.reset(new type_string(std::move(newstr), current));
 			db->replace(key, value);
 			client->response_null();
 		} else {
@@ -250,7 +250,7 @@ namespace rediscpp
 		client->response_start_multi_bulk(keys.size());
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
 			auto & key = **it;
-			auto value = std::dynamic_pointer_cast<string_type>(db->get(key, current));
+			auto value = std::dynamic_pointer_cast<type_string>(db->get(key, current));
 			if (!value) {
 				client->response_null();
 			} else {
@@ -271,7 +271,7 @@ namespace rediscpp
 		for (auto kit = keys.begin(), kend = keys.end(), vit = values.begin(), vend = values.end(); kit != kend && vit != vend; ++kit, ++vit) {
 			auto & key = **kit;
 			auto & value = **vit;
-			std::shared_ptr<string_type> str(new string_type(value, current));
+			std::shared_ptr<type_string> str(new type_string(value, current));
 			db->replace(key, str);
 		}
 		client->response_ok();
@@ -297,7 +297,7 @@ namespace rediscpp
 		for (auto kit = keys.begin(), kend = keys.end(), vit = values.begin(), vend = values.end(); kit != kend && vit != vend; ++kit, ++vit) {
 			auto & key = **kit;
 			auto & value = **vit;
-			std::shared_ptr<string_type> str(new string_type(value, current));
+			std::shared_ptr<type_string> str(new type_string(value, current));
 			db->replace(key, str);
 		}
 		client->response_integer1();
@@ -407,7 +407,7 @@ namespace rediscpp
 		bool is_valid = true;
 		auto value = db->get_string(key, current);
 		int64_t newval = incrby(value ? value->get() : "0", count);
-		std::shared_ptr<string_type> str(new string_type(format("%"PRId64, newval), current));
+		std::shared_ptr<type_string> str(new type_string(format("%"PRId64, newval), current));
 		db->replace(key, str);
 		client->response_integer(newval);
 		return true;
@@ -427,7 +427,7 @@ namespace rediscpp
 		auto value = db->get_string(key, current);
 		auto & increment = client->get_argument(2);
 		std::string newstr = incrbyfloat(value ? value->get() : "0", increment);
-		std::shared_ptr<string_type> str(new string_type(newstr, current));
+		std::shared_ptr<type_string> str(new type_string(newstr, current));
 		db->replace(key, str);
 		client->response_bulk(newstr);
 		return true;
@@ -548,7 +548,7 @@ namespace rediscpp
 		if (max_size == 0) {
 			db->erase(destkey, current);
 		} else {
-			std::shared_ptr<string_type> str(new string_type(deststrval, current));
+			std::shared_ptr<type_string> str(new type_string(deststrval, current));
 			db->replace(destkey, str);
 		}
 		client->response_integer(max_size);
@@ -613,7 +613,7 @@ namespace rediscpp
 			if (set) {
 				*string.rbegin() = static_cast<char>(0x80 >> offset_bit);
 			}
-			std::shared_ptr<string_type> str(new string_type(string, current));
+			std::shared_ptr<type_string> str(new type_string(string, current));
 			db->replace(key, str);
 			client->response_integer0();
 			return true;

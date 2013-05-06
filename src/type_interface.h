@@ -6,11 +6,11 @@
 
 namespace rediscpp
 {
-	class string_type;
-	class list_type;
-	class hash_type;
-	class set_type;
-	class zset_type;
+	class type_string;
+	class type_list;
+	class type_hash;
+	class type_set;
+	class type_zset;
 	class type_interface
 	{
 	protected:

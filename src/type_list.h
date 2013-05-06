@@ -5,14 +5,14 @@
 
 namespace rediscpp
 {
-	class list_type : public type_interface
+	class type_list : public type_interface
 	{
 		std::list<std::string> value;
 		size_t size_;
 	public:
-		list_type(const timeval_type & current);
-		list_type(std::list<std::string> && value_, const timeval_type & current);
-		virtual ~list_type();
+		type_list(const timeval_type & current);
+		type_list(std::list<std::string> && value_, const timeval_type & current);
+		virtual ~type_list();
 		virtual std::string get_type();
 		void lpush(const std::vector<std::string*> & elements);
 		void rpush(const std::vector<std::string*> & elements);

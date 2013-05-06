@@ -11,7 +11,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = writable_db(client);
 		auto & fields = client->get_keys();
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_integer0();
 			return true;
@@ -33,7 +33,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto & field = client->get_argument(2);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_integer0();
 			return true;
@@ -49,7 +49,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto & field = client->get_argument(2);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
 			return true;
@@ -70,7 +70,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto & fields = client->get_keys();
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
 			return true;
@@ -94,7 +94,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_integer0();
 			return true;
@@ -126,7 +126,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto & field = client->get_argument(2);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
 			return true;
@@ -171,7 +171,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR increment is not valid integer");
 		}
 		auto db = writable_db(client);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		std::string oldval = "0";
 		if (hash) {
 			auto r = hash->hget(field);
@@ -182,7 +182,7 @@ namespace rediscpp
 		int64_t newval = incrby(oldval, intval);
 		std::string newstr = format("%"PRId64, newval);
 		if (!hash) {
-			hash.reset(new hash_type(current));
+			hash.reset(new type_hash(current));
 			hash->hset(field, newstr);
 			db->replace(key, hash);
 		} else {
@@ -202,7 +202,7 @@ namespace rediscpp
 		auto & field = client->get_argument(2);
 		auto & increment = client->get_argument(3);
 		auto db = writable_db(client);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		std::string oldval = "0";
 		if (hash) {
 			auto r = hash->hget(field);
@@ -212,7 +212,7 @@ namespace rediscpp
 		}
 		std::string newstr = incrbyfloat(oldval, increment);
 		if (!hash) {
-			hash.reset(new hash_type(current));
+			hash.reset(new type_hash(current));
 			hash->hset(field, newstr);
 			db->replace(key, hash);
 		} else {
@@ -242,7 +242,7 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & field = client->get_argument(2);
 		auto & value = client->get_argument(3);
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		bool create = true;
 		if (hash) {
 			create = hash->hset(field, value, nx);
@@ -250,7 +250,7 @@ namespace rediscpp
 				hash->update(current);
 			}
 		} else {
-			hash.reset(new hash_type(current));
+			hash.reset(new type_hash(current));
 			hash->hset(field, value);
 			db->replace(key, hash);
 		}
@@ -264,9 +264,9 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & fields = client->get_keys();
 		auto & values = client->get_values();
-		std::shared_ptr<hash_type> hash = db->get_hash(key, current);
+		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
-			hash.reset(new hash_type(current));
+			hash.reset(new type_hash(current));
 			db->replace(key, hash);
 		}
 		for (auto it = fields.begin(), end = fields.end(), vit = values.begin(), vend = values.end(); it != end && vit != vend; ++it, ++vit) {

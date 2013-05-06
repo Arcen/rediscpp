@@ -5,7 +5,7 @@
 
 namespace rediscpp
 {
-	class zset_type : public type_interface
+	class type_zset : public type_interface
 	{
 	public:
 		typedef double score_type;
@@ -35,8 +35,8 @@ namespace rediscpp
 		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//ÉXÉRÉAÇ≈ï¿Ç◊ÇΩèÛë‘
 	public:
 		typedef std::set<std::shared_ptr<value_type>, score_comparer>::const_iterator const_iterator;
-		zset_type(const timeval_type & current);
-		virtual ~zset_type();
+		type_zset(const timeval_type & current);
+		virtual ~type_zset();
 		virtual std::string get_type();
 		size_t zadd(const std::vector<score_type> & scores, const std::vector<std::string*> & members);
 		size_t zrem(const std::vector<std::string*> & members);
@@ -51,8 +51,8 @@ namespace rediscpp
 		bool zrank(const std::string & member, size_t & rank, bool rev) const;
 		bool zscore(const std::string & member, score_type & score) const;
 		score_type zincrby(const std::string & member, score_type increment);
-		void zunion(const zset_type & rhs, zset_type::score_type weight, aggregate_types aggregate);
-		void zinter(const zset_type & rhs, score_type weight, aggregate_types aggregate);
+		void zunion(const type_zset & rhs, type_zset::score_type weight, aggregate_types aggregate);
+		void zinter(const type_zset & rhs, score_type weight, aggregate_types aggregate);
 	private:
 		const_iterator get_it(size_t index) const;
 		bool erase_sorted(const std::shared_ptr<value_type> & rhs);

@@ -79,11 +79,11 @@ namespace rediscpp
 			}
 			return value;
 		}
-		std::shared_ptr<string_type> get_string(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<list_type> get_list(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<hash_type> get_hash(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<set_type> get_set(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<zset_type> get_zset(const std::string & key, const timeval_type & current) const;
+		std::shared_ptr<type_string> get_string(const std::string & key, const timeval_type & current) const;
+		std::shared_ptr<type_list> get_list(const std::string & key, const timeval_type & current) const;
+		std::shared_ptr<type_hash> get_hash(const std::string & key, const timeval_type & current) const;
+		std::shared_ptr<type_set> get_set(const std::string & key, const timeval_type & current) const;
+		std::shared_ptr<type_zset> get_zset(const std::string & key, const timeval_type & current) const;
 		bool erase(const std::string & key, const timeval_type & current)
 		{
 			auto it = values.find(key);

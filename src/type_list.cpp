@@ -2,39 +2,39 @@
 
 namespace rediscpp
 {
-	list_type::list_type(const timeval_type & current)
+	type_list::type_list(const timeval_type & current)
 		: type_interface(current)
 		, size_(0)
 	{
 	}
-	list_type::list_type(std::list<std::string> && value_, const timeval_type & current)
+	type_list::type_list(std::list<std::string> && value_, const timeval_type & current)
 		: type_interface(current)
 		, value(std::move(value_))
 		, size_(value.size())
 	{
 	}
-	list_type::~list_type()
+	type_list::~type_list()
 	{
 	}
-	std::string list_type::get_type()
+	std::string type_list::get_type()
 	{
 		return std::string("list");
 	}
-	void list_type::lpush(const std::vector<std::string*> & elements)
+	void type_list::lpush(const std::vector<std::string*> & elements)
 	{
 		for (auto it = elements.begin(), end = elements.end(); it != end; ++it) {
 			value.insert(value.begin(), **it);
 		}
 		size_ += elements.size();
 	}
-	void list_type::rpush(const std::vector<std::string*> & elements)
+	void type_list::rpush(const std::vector<std::string*> & elements)
 	{
 		for (auto it = elements.begin(), end = elements.end(); it != end; ++it) {
 			value.insert(value.end(), **it);
 		}
 		size_ += elements.size();
 	}
-	bool list_type::linsert(const std::string & pivot, const std::string & element, bool before)
+	bool type_list::linsert(const std::string & pivot, const std::string & element, bool before)
 	{
 		auto it = std::find(value.begin(), value.end(), pivot);
 		if (it == value.end()) {
@@ -47,17 +47,17 @@ namespace rediscpp
 		++size_;
 		return true;
 	}
-	void list_type::lpush(const std::string & element)
+	void type_list::lpush(const std::string & element)
 	{
 		value.push_front(element);
 		++size_;
 	}
-	void list_type::rpush(const std::string & element)
+	void type_list::rpush(const std::string & element)
 	{
 		value.push_back(element);
 		++size_;
 	}
-	std::string list_type::lpop()
+	std::string type_list::lpop()
 	{
 		if (size_ == 0) {
 			throw std::runtime_error("lpop failed. list is empty");
@@ -67,7 +67,7 @@ namespace rediscpp
 		--size_;
 		return result;
 	}
-	std::string list_type::rpop()
+	std::string type_list::rpop()
 	{
 		if (size_ == 0) {
 			throw std::runtime_error("rpop failed. list is empty");
@@ -77,15 +77,15 @@ namespace rediscpp
 		--size_;
 		return result;
 	}
-	size_t list_type::size() const
+	size_t type_list::size() const
 	{
 		return size_;
 	}
-	bool list_type::empty() const
+	bool type_list::empty() const
 	{
 		return size_ == 0;
 	}
-	std::list<std::string>::const_iterator list_type::get_it(size_t index) const
+	std::list<std::string>::const_iterator type_list::get_it(size_t index) const
 	{
 		if (size_ <= index) {
 			return value.end();
@@ -103,7 +103,7 @@ namespace rediscpp
 		}
 		return it;
 	}
-	std::list<std::string>::iterator list_type::get_it_internal(size_t index)
+	std::list<std::string>::iterator type_list::get_it_internal(size_t index)
 	{
 		if (size_ <= index) {
 			return value.end();
@@ -121,14 +121,14 @@ namespace rediscpp
 		}
 		return it;
 	}
-	bool list_type::set(int64_t index, const std::string & newval)
+	bool type_list::set(int64_t index, const std::string & newval)
 	{
 		if (index < 0 || size_ <= index) return false;
 		auto it = get_it_internal(index);
 		*it = newval;
 		return true;
 	}
-	std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> list_type::get_range(size_t start, size_t end) const
+	std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> type_list::get_range(size_t start, size_t end) const
 	{
 		start = std::min(size_, start);
 		end = std::min(size_, end);
@@ -153,11 +153,11 @@ namespace rediscpp
 		}
 		return std::make_pair(sit, eit);
 	}
-	std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> list_type::get_range() const
+	std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> type_list::get_range() const
 	{
 		return std::make_pair(value.begin(), value.end());
 	}
-	std::pair<std::list<std::string>::iterator,std::list<std::string>::iterator> list_type::get_range_internal(size_t start, size_t end)
+	std::pair<std::list<std::string>::iterator,std::list<std::string>::iterator> type_list::get_range_internal(size_t start, size_t end)
 	{
 		start = std::min(size_, start);
 		end = std::min(size_, end);
@@ -184,7 +184,7 @@ namespace rediscpp
 	}
 	///@param[in] count 0ならすべてを消す、正ならfrontから指定数を消す、負ならbackから指定数を消す
 	///@return 削除数
-	size_t list_type::lrem(int64_t count, const std::string & target)
+	size_t type_list::lrem(int64_t count, const std::string & target)
 	{
 		size_t removed = 0;
 		if (count == 0) {
@@ -232,7 +232,7 @@ namespace rediscpp
 		return removed;
 	}
 	///[start,end)の範囲になるように前後を削除する
-	void list_type::trim(size_t start, size_t end)
+	void type_list::trim(size_t start, size_t end)
 	{
 		start = std::min(size_, start);
 		end = std::min(size_, end);

@@ -5,13 +5,13 @@
 
 namespace rediscpp
 {
-	class string_type : public type_interface
+	class type_string : public type_interface
 	{
 		std::string string_value;
 	public:
-		string_type(const std::string & string_value_, const timeval_type & current);
-		string_type(std::string && string_value_, const timeval_type & current);
-		virtual ~string_type();
+		type_string(const std::string & string_value_, const timeval_type & current);
+		type_string(std::string && string_value_, const timeval_type & current);
+		virtual ~type_string();
 		virtual std::string get_type();
 		const std::string & get();
 		std::string & ref();

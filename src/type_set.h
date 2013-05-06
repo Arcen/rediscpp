@@ -5,12 +5,12 @@
 
 namespace rediscpp
 {
-	class set_type : public type_interface
+	class type_set : public type_interface
 	{
 		std::set<std::string> value;
 	public:
-		set_type(const timeval_type & current);
-		virtual ~set_type();
+		type_set(const timeval_type & current);
+		virtual ~type_set();
 		virtual std::string get_type();
 		size_t sadd(const std::vector<std::string*> & members);
 		size_t scard() const;
@@ -28,9 +28,9 @@ namespace rediscpp
 		bool empty() const;
 		size_t size() const;
 		void clear();
-		void sunion(const set_type & rhs);
-		void sdiff(const set_type & rhs);
-		void sinter(const set_type & rhs);
+		void sunion(const type_set & rhs);
+		void sdiff(const type_set & rhs);
+		void sinter(const type_set & rhs);
 	};
 };
 

@@ -38,11 +38,11 @@ namespace rediscpp
 			if (in_blocking) {
 				//ブロック中はリスト以外が設定されても待つ
 				std::shared_ptr<type_interface> value = db->get(key, current);
-				if (!value || !std::dynamic_pointer_cast<list_type>(value)) {
+				if (!value || !std::dynamic_pointer_cast<type_list>(value)) {
 					continue;
 				}
 			}
-			std::shared_ptr<list_type> list = db->get_list(key, current);
+			std::shared_ptr<type_list> list = db->get_list(key, current);
 			if (!list) {
 				continue;
 			}
@@ -51,11 +51,11 @@ namespace rediscpp
 				try {
 					if (rpoplpush) {
 						auto &destkey = **keys.rbegin();
-						std::shared_ptr<list_type> dest = db->get_list(destkey, current);
+						std::shared_ptr<type_list> dest = db->get_list(destkey, current);
 						const std::string & result = list->rpop();
 						if (!dest) {
 							created = true;
-							dest.reset(new list_type(current));
+							dest.reset(new type_list(current));
 							dest->lpush(result);
 							db->replace(destkey, dest);
 						} else {
@@ -115,18 +115,18 @@ namespace rediscpp
 		auto db = writable_db(client);
 		bool in_blocking = client->is_blocked();
 		auto & key = client->get_argument(1);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list || list->empty()) {
 			client->response_null();
 			return true;
 		}
 		auto & destkey = client->get_argument(2);
-		std::shared_ptr<list_type> dest = db->get_list(destkey, current);
+		std::shared_ptr<type_list> dest = db->get_list(destkey, current);
 		const std::string & result = list->rpop();
 		bool created = false;
 		if (!dest) {
 			created = true;
-			dest.reset(new list_type(current));
+			dest.reset(new type_list(current));
 			dest->lpush(result);
 			db->replace(destkey, dest);
 		} else {
@@ -178,14 +178,14 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & values = client->get_values();
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		bool created = false;
 		if (!list) {
 			if (exist) {
 				client->response_integer0();
 				return true;
 			}
-			list.reset(new list_type(current));
+			list.reset(new type_list(current));
 			if (left) {
 				list->lpush(values);
 			} else {
@@ -227,7 +227,7 @@ namespace rediscpp
 		auto & value = client->get_argument(4);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list || !list->linsert(pivot, value, before)) {
 			client->response_integer(0);
 			return true;
@@ -254,7 +254,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_null();
 			return true;
@@ -275,7 +275,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_integer(0);
 			return true;
@@ -290,7 +290,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_null();
 			return true;
@@ -314,7 +314,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_null_multi_bulk();
 			return true;
@@ -341,7 +341,7 @@ namespace rediscpp
 		auto & value = client->get_argument(3);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_integer0();
 			return true;
@@ -361,7 +361,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_ok();
 			return true;
@@ -384,7 +384,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & value = client->get_argument(3);
 		auto db = writable_db(client);
-		std::shared_ptr<list_type> list = db->get_list(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		if (!list) {
 			client->response_ok();
 			return true;
