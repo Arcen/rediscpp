@@ -3,6 +3,8 @@ noinst_HEADERS =
 rediscpp_SOURCES = \
     network.cpp \
     server.cpp \
+    client.cpp \
+    database.cpp \
     log.cpp \
     timeval.cpp \
     common.cpp \

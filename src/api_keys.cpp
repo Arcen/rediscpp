@@ -1,4 +1,5 @@
 #include "server.h"
+#include "client.h"
 #include "type_string.h"
 #include "type_hash.h"
 #include "type_list.h"

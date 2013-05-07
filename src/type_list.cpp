@@ -182,8 +182,8 @@ namespace rediscpp
 		}
 		return std::make_pair(sit, eit);
 	}
-	///@param[in] count 0�Ȃ炷�ׂĂ������A���Ȃ�front����w�萔�������A���Ȃ�back����w�萔������
-	///@return �폜��
+	///@param[in] count 0ならすべてを消す、正ならfrontから指定数を消す、負ならbackから指定数を消す
+	///@return 削除数
 	size_t type_list::lrem(int64_t count, const std::string & target)
 	{
 		size_t removed = 0;
@@ -231,7 +231,7 @@ namespace rediscpp
 		size_ -= removed;
 		return removed;
 	}
-	///[start,end)�͈̔͂ɂȂ�悤�ɑO����폜����
+	///[start,end)の範囲になるように前後を削除する
 	void type_list::trim(size_t start, size_t end)
 	{
 		start = std::min(size_, start);

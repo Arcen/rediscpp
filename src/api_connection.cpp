@@ -1,5 +1,5 @@
 #include "server.h"
-#include "log.h"
+#include "client.h"
 
 namespace rediscpp
 {

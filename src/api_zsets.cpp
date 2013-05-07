@@ -1,9 +1,10 @@
 #include "server.h"
+#include "client.h"
 #include "type_zset.h"
 
 namespace rediscpp
 {
-	///•¡”‚Ìƒƒ“ƒo[‚ğ’Ç‰Á
+	///è¤‡æ•°ã®ãƒ¡ãƒ³ãƒãƒ¼ã‚’è¿½åŠ 
 	///@note Available since 1.2.0.
 	bool server_type::api_zadd(client_type * client)
 	{
@@ -35,7 +36,7 @@ namespace rediscpp
 		client->response_integer(added);
 		return true;
 	}
-	///—v‘f”‚ğæ“¾
+	///è¦ç´ æ•°ã‚’å–å¾—
 	///@note Available since 1.2.0.
 	bool server_type::api_zcard(client_type * client)
 	{
@@ -50,7 +51,7 @@ namespace rediscpp
 		client->response_integer(zset->size());
 		return true;
 	}
-	///—v‘f”‚ğæ“¾
+	///è¦ç´ æ•°ã‚’å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_zcount(client_type * client)
 	{
@@ -87,7 +88,7 @@ namespace rediscpp
 		client->response_integer(size);
 		return true;
 	}
-	///ƒXƒRƒA‚ğ‰ÁZ
+	///ã‚¹ã‚³ã‚¢ã‚’åŠ ç®—
 	///@note Available since 1.2.0.
 	bool server_type::api_zincrby(client_type * client)
 	{
@@ -119,19 +120,19 @@ namespace rediscpp
 		client->response_bulk(format("%g", result_score));
 		return true;
 	}
-	///ÏW‡
+	///ç©é›†åˆ
 	///@note Available since 2.0.0.
 	bool server_type::api_zinterstore(client_type * client)
 	{
 		return api_zoperaion_internal(client, 0);
 	}
-	///˜aW‡
+	///å’Œé›†åˆ
 	///@note Available since 2.0.0.
 	bool server_type::api_zunionstore(client_type * client)
 	{
 		return api_zoperaion_internal(client, 1);
 	}
-	///W‡‰‰Z
+	///é›†åˆæ¼”ç®—
 	///@param[in] type 0 : inter, 1 : union
 	bool server_type::api_zoperaion_internal(client_type * client, int type)
 	{
@@ -217,13 +218,13 @@ namespace rediscpp
 		client->response_integer(zset->size());
 		return true;
 	}
-	///—v‘f‚Ì”ÍˆÍæ“¾(ƒXƒRƒA‡•“¯‚¶ƒXƒRƒA‚Íƒƒ“ƒo[‚Ì«‘‡)
+	///è¦ç´ ã®ç¯„å›²å–å¾—(ã‚¹ã‚³ã‚¢é †ï¼†åŒã˜ã‚¹ã‚³ã‚¢ã¯ãƒ¡ãƒ³ãƒãƒ¼ã®è¾æ›¸é †)
 	///@note Available since 1.2.0.
 	bool server_type::api_zrange(client_type * client)
 	{
 		return api_zrange_internal(client, false);
 	}
-	///—v‘f‚Ì”ÍˆÍæ“¾(‹t‡)
+	///è¦ç´ ã®ç¯„å›²å–å¾—(é€†é †)
 	///@note Available since 1.2.0.
 	bool server_type::api_zrevrange(client_type * client)
 	{
@@ -297,13 +298,13 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///—v‘f‚ÌƒXƒRƒA”ÍˆÍæ“¾(ƒXƒRƒA‡•“¯‚¶ƒXƒRƒA‚Íƒƒ“ƒo[‚Ì«‘‡)
+	///è¦ç´ ã®ã‚¹ã‚³ã‚¢ç¯„å›²å–å¾—(ã‚¹ã‚³ã‚¢é †ï¼†åŒã˜ã‚¹ã‚³ã‚¢ã¯ãƒ¡ãƒ³ãƒãƒ¼ã®è¾æ›¸é †)
 	///@note Available since 1.0.5.
 	bool server_type::api_zrangebyscore(client_type * client)
 	{
 		return api_zrangebyscore_internal(client, false);
 	}
-	///—v‘f‚ÌƒXƒRƒA”ÍˆÍæ“¾(‹t‡)
+	///è¦ç´ ã®ã‚¹ã‚³ã‚¢ç¯„å›²å–å¾—(é€†é †)
 	///@note Available since 1.0.5.
 	bool server_type::api_zrevrangebyscore(client_type * client)
 	{
@@ -429,13 +430,13 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///—v‘f‚Ì‡˜ˆÊ’u‚ğæ“¾
+	///è¦ç´ ã®é †åºä½ç½®ã‚’å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_zrank(client_type * client)
 	{
 		return api_zrank_internal(client, false);
 	}
-	///—v‘f‚Ì‡˜ˆÊ’u‚ğæ“¾(‹t‡)
+	///è¦ç´ ã®é †åºä½ç½®ã‚’å–å¾—(é€†é †)
 	///@note Available since 2.0.0
 	bool server_type::api_zrevrank(client_type * client)
 	{
@@ -461,7 +462,7 @@ namespace rediscpp
 		client->response_integer(rank);
 		return true;
 	}
-	///ƒXƒRƒA‚ğæ“¾
+	///ã‚¹ã‚³ã‚¢ã‚’å–å¾—
 	///@note Available since 1.2.0.
 	bool server_type::api_zscore(client_type * client)
 	{
@@ -483,7 +484,7 @@ namespace rediscpp
 		client->response_bulk(format("%g", score));
 		return true;
 	}
-	///—v‘f‚ğíœ
+	///è¦ç´ ã‚’å‰Šé™¤
 	///@note Available since 1.2.0.
 	bool server_type::api_zrem(client_type * client)
 	{
@@ -507,7 +508,7 @@ namespace rediscpp
 		client->response_integer(removed);
 		return true;
 	}
-	///ƒ‰ƒ“ƒN‚Å—v‘f‚ğíœ
+	///ãƒ©ãƒ³ã‚¯ã§è¦ç´ ã‚’å‰Šé™¤
 	///@note Available since 1.2.0.
 	bool server_type::api_zremrangebyrank(client_type * client)
 	{
@@ -558,7 +559,7 @@ namespace rediscpp
 		client->response_integer(removed);
 		return true;
 	}
-	///ƒXƒRƒA‚Ì”ÍˆÍ‚Å—v‘f‚ğíœ
+	///ã‚¹ã‚³ã‚¢ã®ç¯„å›²ã§è¦ç´ ã‚’å‰Šé™¤
 	///Available since 1.2.0.
 	bool server_type::api_zremrangebyscore(client_type * client)
 	{

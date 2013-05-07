@@ -5,12 +5,12 @@
 #include "timeval.h"
 #include "thread.h"
 #include "type_interface.h"
+#include "database.h"
 
 namespace rediscpp
 {
 	class server_type;
 	class client_type;
-	typedef std::vector<std::string> arguments_type;
 	class blocked_exception : public std::exception
 	{
 		std::string what_;
@@ -20,150 +20,6 @@ namespace rediscpp
 		blocked_exception(const char * const & msg) : what_(msg){}
 		virtual ~blocked_exception() throw() {}
 		virtual const char* what() const throw() { return what_.c_str(); }
-	};
-	class database_type;
-	class database_write_locker
-	{
-		database_type * database;
-		std::shared_ptr<rwlock_locker> locker;
-	public:
-		database_write_locker(database_type * database_, client_type * client, bool rdlock);
-		database_type * get() { return database; }
-		database_type * operator->() { return database; }
-	};
-	class database_read_locker
-	{
-		database_type * database;
-		std::shared_ptr<rwlock_locker> locker;
-	public:
-		database_read_locker(database_type * database_, client_type * client);
-		const database_type * get() { return database; }
-		const database_type * operator->() { return database; }
-	};
-	class database_type
-	{
-		friend class database_write_locker;
-		friend class database_read_locker;
-		std::unordered_map<std::string,std::shared_ptr<type_interface>> values;
-		mutable mutex_type expire_mutex;
-		mutable std::multimap<timeval_type,std::string> expires;
-		rwlock_type rwlock;
-		database_type(const database_type &);
-	public:
-		database_type(){};
-		size_t get_dbsize() const { return values.size(); }
-		void clear() { values.clear(); }
-		std::shared_ptr<type_interface> get(const std::string & key, const timeval_type & current) const
-		{
-			auto it = values.find(key);
-			if (it == values.end()) {
-				return std::shared_ptr<type_interface>();
-			}
-			auto value = it->second;
-			if (value->is_expired(current)) {
-				//values.erase(it);
-				return std::shared_ptr<type_interface>();
-			}
-			return value;
-		}
-		template<typename T>
-		std::shared_ptr<T> get_as(const std::string & key, const timeval_type & current) const
-		{
-			std::shared_ptr<type_interface> val = get(key, current);
-			if (!val) {
-				return std::shared_ptr<T>();
-			}
-			std::shared_ptr<T> value = std::dynamic_pointer_cast<T>(val);
-			if (!value) {
-				throw std::runtime_error("ERR type mismatch");
-			}
-			return value;
-		}
-		std::shared_ptr<type_string> get_string(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<type_list> get_list(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<type_hash> get_hash(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<type_set> get_set(const std::string & key, const timeval_type & current) const;
-		std::shared_ptr<type_zset> get_zset(const std::string & key, const timeval_type & current) const;
-		bool erase(const std::string & key, const timeval_type & current)
-		{
-			auto it = values.find(key);
-			if (it == values.end()) {
-				return false;
-			}
-			auto value = it->second;
-			if (value->is_expired(current)) {
-				values.erase(it);
-				return false;
-			}
-			values.erase(it);
-			return true;
-		}
-		bool insert(const std::string & key, std::shared_ptr<type_interface> value, const timeval_type & current)
-		{
-			auto it = values.find(key);
-			if (it == values.end()) {
-				return values.insert(std::make_pair(key, value)).second;
-			} else {
-				if (it->second->is_expired(current)) {
-					it->second = value;
-					return true;
-				}
-				return false;
-			}
-		}
-		void replace(const std::string & key, std::shared_ptr<type_interface> value)
-		{
-			values[key] = value;
-		}
-		std::string randomkey(const timeval_type & current)
-		{
-			while (!values.empty()) {
-				auto it = values.begin();
-				std::advance(it, rand() % values.size());
-				if (it->second->is_expired(current)) {
-					values.erase(it);
-					continue;
-				}
-				return it->first;
-			}
-			return std::string();
-		}
-		void regist_expiring_key(timeval_type tv, const std::string & key) const
-		{
-			mutex_locker locker(expire_mutex);
-			expires.insert(std::make_pair(tv, key));
-		}
-		void flush_expiring_key(const timeval_type & current)
-		{
-			mutex_locker locker(expire_mutex);
-			if (expires.empty()) {
-				return;
-			}
-			auto it = expires.begin(), end = expires.end();
-			for (; it != end && it->first < current; ++it) {
-				auto vit = values.find(it->second);
-				if (vit != values.end() && vit->second->is_expired(current)) {
-					values.erase(vit);
-				}
-			}
-			expires.erase(expires.begin(), it);
-		}
-		void match(std::unordered_set<std::string> & result, const std::string & pattern) const
-		{
-			if (pattern == "*") {
-				for (auto it = values.begin(), end = values.end(); it != end; ++it) {
-					auto & key = it->first;
-					result.insert(key);
-				}
-			} else {
-				for (auto it = values.begin(), end = values.end(); it != end; ++it) {
-					auto & key = it->first;
-					if (pattern_match(pattern, key)) {
-						result.insert(key);
-					}
-				}
-			}
-		}
 	};
 	typedef bool (server_type::*api_function_type)(client_type * client);
 	struct api_info
@@ -207,101 +63,6 @@ namespace rediscpp
 			arg_types = arg_types_;
 			return *this;
 		}
-	};
-	class client_type
-	{
-		friend class server_type;
-		server_type & server;
-		std::shared_ptr<socket_type> client;
-		arguments_type arguments;
-		std::vector<std::string*> keys;
-		std::vector<std::string*> values;
-		std::vector<std::string*> fields;
-		std::vector<std::string*> members;
-		std::vector<std::string*> scores;
-		int argument_count;
-		int argument_index;
-		int argument_size;
-		std::string password;
-		static const int argument_is_null = -1;
-		static const int argument_is_undefined = -2;
-		int db_index;
-		bool transaction;
-		bool multi_executing;
-		std::list<arguments_type> transaction_arguments;
-		std::set<std::tuple<std::string,int,timeval_type>> watching;
-		std::vector<uint8_t> write_cache;
-		timeval_type current_time;
-		int events;//for thread
-		bool blocked;//for list
-		timeval_type blocked_till;
-		std::weak_ptr<client_type> self;
-	public:
-		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
-		bool parse();
-		const arguments_type & get_arguments() const { return arguments; }
-		const std::string & get_argument(int index) const { return arguments[index]; }
-		const std::vector<std::string*> & get_keys() const { return keys; }
-		const std::vector<std::string*> & get_values() const { return values; }
-		const std::vector<std::string*> & get_fields() const { return fields; }
-		const std::vector<std::string*> & get_members() const { return members; }
-		const std::vector<std::string*> & get_scores() const { return scores; }
-		void response_status(const std::string & state);
-		void response_error(const std::string & state);
-		void response_ok();
-		void response_pong();
-		void response_queued();
-		void response_integer(int64_t value);
-		void response_integer0();
-		void response_integer1();
-		void response_bulk(const std::string & bulk, bool not_null = true);
-		void response_null();
-		void response_null_multi_bulk();
-		void response_start_multi_bulk(size_t count);
-		void response_raw(const std::string & raw);
-		void flush();
-		void close_after_send() { client->close_after_send(); }
-		bool require_auth(const std::string & auth);
-		bool auth(const std::string & password_);
-		void select(int index) { db_index = index; }
-		int get_db_index() { return db_index; }
-		bool multi();
-		bool exec();
-		void discard();
-		bool in_exec() const;
-		bool queuing(const std::string & command);
-		void unwatch() { watching.clear(); }
-		void watch(const std::string & key);
-		std::set<std::tuple<std::string,int,timeval_type>> & get_watching() { return watching; }
-		size_t get_transaction_size() { return transaction_arguments.size(); }
-		bool unqueue();
-		timeval_type get_time() const { return current_time; }
-		void process();
-		void set(std::shared_ptr<client_type> self_) { self = self_; }
-		std::shared_ptr<client_type> get() { return self.lock(); }
-		bool is_blocked() const { return blocked; }
-		timeval_type get_blocked_till() const { return blocked_till; }
-		void start_blocked(int64_t sec)
-		{
-			blocked = true;
-			if (0 < sec) {
-				blocked_till = current_time;
-				blocked_till.add_msec(sec * 1000);
-			} else {
-				blocked_till.epoc();
-			}
-		}
-		void end_blocked() { blocked = false; }
-		bool still_block() const
-		{
-			return blocked && (blocked_till.is_epoc() || current_time < blocked_till);
-		}
-	private:
-		void inline_command_parser(const std::string & line);
-		bool parse_line(std::string & line);
-		bool parse_data(std::string & data, int size);
-		bool execute();
-		bool execute(const api_info & info);
 	};
 	class worker_type : public thread_type
 	{
@@ -359,27 +120,17 @@ namespace rediscpp
 		void shutdown_threads();
 		bool start(const std::string & hostname, const std::string & port, int threads);
 		void process();
-		database_write_locker writable_db(int index, client_type * client, bool rdlock = false) { return database_write_locker(databases.at(index).get(), client, rdlock); }
-		database_read_locker readable_db(int index, client_type * client) { return database_read_locker(databases.at(index).get(), client); }
-		database_write_locker writable_db(client_type * client, bool rdlock = false) { return writable_db(client->get_db_index(), client, rdlock); }
-		database_read_locker readable_db(client_type * client) { return readable_db(client->get_db_index(), client); }
+		database_write_locker writable_db(int index, client_type * client, bool rdlock = false);
+		database_read_locker readable_db(int index, client_type * client);
+		database_write_locker writable_db(client_type * client, bool rdlock = false);
+		database_read_locker readable_db(client_type * client);
 	private:
 		void remove_client(std::shared_ptr<client_type> client, bool now = false);
 		void append_client(std::shared_ptr<client_type> client, bool now = false);
 		std::map<std::string,api_info> api_map;
 		void build_api_map();
-		void blocked(std::shared_ptr<client_type> client)
-		{
-			if (!client) return;
-			mutex_locker locker(blocked_mutex);
-			blocked_clients.insert(client);
-		}
-		void unblocked(std::shared_ptr<client_type> client)
-		{
-			if (!client) return;
-			mutex_locker locker(blocked_mutex);
-			blocked_clients.insert(client);
-		}
+		void blocked(std::shared_ptr<client_type> client);
+		void unblocked(std::shared_ptr<client_type> client);
 		void excecute_blocked_client(bool now = false);
 		void notify_list_pushed();
 		int64_t pos_fix(int64_t pos, int64_t size)

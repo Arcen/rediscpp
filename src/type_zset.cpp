@@ -224,7 +224,7 @@ namespace rediscpp
 		score = it->second->score;
 		return true;
 	}
-	///@retval nan ’†’f
+	///@retval nan ä¸­æ–­
 	type_zset::score_type type_zset::zincrby(const std::string & member, score_type increment)
 	{
 		if (isnan(increment)) {
@@ -246,7 +246,7 @@ namespace rediscpp
 		sorted.insert(it->second);
 		return after;
 	}
-	///˜aW‡
+	///å’Œé›†åˆ
 	void type_zset::zunion(const type_zset & rhs, type_zset::score_type weight, aggregate_types aggregate)
 	{
 		if (this == &rhs) {
@@ -304,7 +304,7 @@ namespace rediscpp
 			++rit;
 		}
 	}
-	///ÏW‡
+	///ç©é›†åˆ
 	void type_zset::zinter(const type_zset & rhs, score_type weight, aggregate_types aggregate)
 	{
 		if (this == &rhs) {

@@ -92,7 +92,9 @@
     <ClCompile Include="src\api_zsets.cpp" />
     <ClCompile Include="src\api_strings.cpp" />
     <ClCompile Include="src\api_transactions.cpp" />
+    <ClCompile Include="src\client.cpp" />
     <ClCompile Include="src\common.cpp" />
+    <ClCompile Include="src\database.cpp" />
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\network.cpp" />
@@ -106,7 +108,9 @@
     <ClCompile Include="src\type_zset.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\client.h" />
     <ClInclude Include="src\common.h" />
+    <ClInclude Include="src\database.h" />
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\network.h" />
     <ClInclude Include="src\server.h" />

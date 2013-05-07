@@ -14,8 +14,8 @@ namespace rediscpp
 	class type_interface
 	{
 	protected:
-		timeval_type last_modified_time;///<ÅŒã‚ÉC³‚µ‚½ŽžŠÔ(WATCH—p)
-		timeval_type expire_time;///<0,0‚È‚ç—LŒøŠúŒÀ–³‚µAÁŽ¸‚·‚é“úŽž‚ð•Û‘¶‚·‚é
+		timeval_type last_modified_time;///<æœ€å¾Œã«ä¿®æ­£ã—ãŸæ™‚é–“(WATCHç”¨)
+		timeval_type expire_time;///<0,0ãªã‚‰æœ‰åŠ¹æœŸé™ç„¡ã—ã€æ¶ˆå¤±ã™ã‚‹æ—¥æ™‚ã‚’ä¿å­˜ã™ã‚‹
 	public:
 		type_interface(const timeval_type & current);
 		virtual ~type_interface();

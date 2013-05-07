@@ -1,9 +1,10 @@
 #include "server.h"
+#include "client.h"
 #include "type_set.h"
 
 namespace rediscpp
 {
-	///•¡”‚Ìƒƒ“ƒo[‚ğ’Ç‰Á
+	///è¤‡æ•°ã®ãƒ¡ãƒ³ãƒãƒ¼ã‚’è¿½åŠ 
 	///@note Available since 1.0.0.
 	bool server_type::api_sadd(client_type * client)
 	{
@@ -26,7 +27,7 @@ namespace rediscpp
 		client->response_integer(added);
 		return true;
 	}
-	///ƒƒ“ƒo[‚Ì”‚ğæ“¾
+	///ãƒ¡ãƒ³ãƒãƒ¼ã®æ•°ã‚’å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_scard(client_type * client)
 	{
@@ -42,7 +43,7 @@ namespace rediscpp
 		client->response_integer(size);
 		return true;
 	}
-	///ƒƒ“ƒo[Šm”F
+	///ãƒ¡ãƒ³ãƒãƒ¼ç¢ºèª
 	///@note Available since 1.0.0.
 	bool server_type::api_sismember(client_type * client)
 	{
@@ -58,7 +59,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///‘S‚Ä‚Ìƒƒ“ƒo[‚ğæ“¾
+	///å…¨ã¦ã®ãƒ¡ãƒ³ãƒãƒ¼ã‚’å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_smembers(client_type * client)
 	{
@@ -77,7 +78,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒƒ“ƒo[‚ğˆÚ“®
+	///ãƒ¡ãƒ³ãƒãƒ¼ã‚’ç§»å‹•
 	///@note Available since 1.0.0.
 	bool server_type::api_smove(client_type * client)
 	{
@@ -124,7 +125,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒƒ“ƒo[‚ğƒ‰ƒ“ƒ_ƒ€‚Éæ‚èo‚µ
+	///ãƒ¡ãƒ³ãƒãƒ¼ã‚’ãƒ©ãƒ³ãƒ€ãƒ ã«å–ã‚Šå‡ºã—
 	///@note Available since 1.0.0.
 	bool server_type::api_spop(client_type * client)
 	{
@@ -148,7 +149,7 @@ namespace rediscpp
 		client->response_bulk(member);
 		return true;
 	}
-	///ƒƒ“ƒo[‚ğƒ‰ƒ“ƒ_ƒ€‚Éæ“¾
+	///ãƒ¡ãƒ³ãƒãƒ¼ã‚’ãƒ©ãƒ³ãƒ€ãƒ ã«å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_srandmember(client_type * client)
 	{
@@ -178,7 +179,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒƒ“ƒo[‚ğíœ
+	///ãƒ¡ãƒ³ãƒãƒ¼ã‚’å‰Šé™¤
 	///@note Available since 1.0.0.
 	bool server_type::api_srem(client_type * client)
 	{
@@ -225,10 +226,10 @@ namespace rediscpp
 	{
 		return api_soperaion_internal(client, 0, true);
 	}
-	///W‡‰‰Z
+	///é›†åˆæ¼”ç®—
 	///@note Available since 1.0.0.
 	///@param[in] type -1 : diff, 0 : inter, 1 : union
-	///@param[in] store •Û‘¶‚·‚é‚©‚Ç‚¤‚©
+	///@param[in] store ä¿å­˜ã™ã‚‹ã‹ã©ã†ã‹
 	bool server_type::api_soperaion_internal(client_type * client, int type, bool store)
 	{
 		auto & keys = client->get_keys();

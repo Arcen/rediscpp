@@ -7,6 +7,15 @@
     <Filter Include="src">
       <UniqueIdentifier>{53bb836b-a91a-4d58-ae7e-5f4ab42fa788}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\type">
+      <UniqueIdentifier>{091b52d8-3457-44bc-acd4-badae1b3f817}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\api">
+      <UniqueIdentifier>{9d8629fc-d5b9-43b3-8d41-a4869a090caf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\util">
+      <UniqueIdentifier>{057513ac-2db9-44ca-97eb-619a54ae270a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="doc\commands.txt">
@@ -26,106 +35,118 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\network.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\server.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\log.cpp">
+    <ClCompile Include="src\database.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\api_server.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_connection.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\timeval.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_keys.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_strings.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_transactions.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\common.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_lists.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_hashes.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_sets.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\api_zsets.cpp">
+    <ClCompile Include="src\client.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\type_hash.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\type_string.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\type_list.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\type_set.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\type_zset.cpp">
-      <Filter>src</Filter>
+      <Filter>src\type</Filter>
     </ClCompile>
     <ClCompile Include="src\type_interface.cpp">
-      <Filter>src</Filter>
+      <Filter>src\type</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_list.cpp">
+      <Filter>src\type</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_set.cpp">
+      <Filter>src\type</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_string.cpp">
+      <Filter>src\type</Filter>
+    </ClCompile>
+    <ClCompile Include="src\type_zset.cpp">
+      <Filter>src\type</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_connection.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_zsets.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_hashes.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_keys.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_lists.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_server.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_sets.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_strings.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\api_transactions.cpp">
+      <Filter>src\api</Filter>
+    </ClCompile>
+    <ClCompile Include="src\common.cpp">
+      <Filter>src\util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\log.cpp">
+      <Filter>src\util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\timeval.cpp">
+      <Filter>src\util</Filter>
+    </ClCompile>
+    <ClCompile Include="src\network.cpp">
+      <Filter>src\util</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\network.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\common.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="src\server.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\log.h">
+    <ClInclude Include="src\database.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\timeval.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\thread.h">
+    <ClInclude Include="src\client.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\type_zset.h">
-      <Filter>src</Filter>
+      <Filter>src\type</Filter>
     </ClInclude>
     <ClInclude Include="src\type_hash.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\type_string.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\type_list.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\type_set.h">
-      <Filter>src</Filter>
+      <Filter>src\type</Filter>
     </ClInclude>
     <ClInclude Include="src\type_interface.h">
-      <Filter>src</Filter>
+      <Filter>src\type</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_list.h">
+      <Filter>src\type</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_set.h">
+      <Filter>src\type</Filter>
+    </ClInclude>
+    <ClInclude Include="src\type_string.h">
+      <Filter>src\type</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\log.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\thread.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\timeval.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\network.h">
+      <Filter>src\util</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

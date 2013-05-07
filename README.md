@@ -17,7 +17,7 @@ No License yet.
     * No configuration feature yet
 * SLAVEOF, SYNC, MIGRATE, RESTORE
     * No client feature yet
-* INFO, MONITOR, SLOWLOG, DUMP, OBJECT, DEBUG OBJECT, SETFAULT
+* INFO, MONITOR, SLOWLOG, DUMP, OBJECT, DEBUG OBJECT, SEGFAULT
     * No system feature yet
 * Scripting APIs
     * No lua

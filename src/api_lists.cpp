@@ -1,28 +1,29 @@
 #include "server.h"
+#include "client.h"
 #include "type_list.h"
 
 namespace rediscpp
 {
-	///ƒuƒƒbƒN‚µ‚Â‚Â¶‘¤‚©‚çæ“¾
+	///ãƒ–ãƒ­ãƒƒã‚¯ã—ã¤ã¤å·¦å´ã‹ã‚‰å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_blpop(client_type * client)
 	{
 		return api_bpop_internal(client, true, false);
 	}
-	///ƒuƒƒbƒN‚µ‚Â‚Â‰E‘¤‚©‚çæ“¾
+	///ãƒ–ãƒ­ãƒƒã‚¯ã—ã¤ã¤å³å´ã‹ã‚‰å–å¾—
 	///@note Available since 2.0.0.
 	bool server_type::api_brpop(client_type * client)
 	{
 		return api_bpop_internal(client, false, false);
 	}
-	///ƒuƒƒbƒN‚µ‚Â‚Â‰E‘¤‚©‚çæ“¾‚µA¶‚É’Ç‰Á
+	///ãƒ–ãƒ­ãƒƒã‚¯ã—ã¤ã¤å³å´ã‹ã‚‰å–å¾—ã—ã€å·¦ã«è¿½åŠ 
 	///@note Available since 2.2.0.
 	bool server_type::api_brpoplpush(client_type * client)
 	{
 		return api_bpop_internal(client, false, true);
 	}
-	///ƒuƒƒbƒN‚µ‚Â‚Âæ“¾‚µA‘ÎÛ‚ª‚ ‚ê‚Î¶‚É’Ç‰Á‚·‚é
-	///@note ’Ç‰Á‚·‚é‚Æ‚«A‹ó‚©ƒŠƒXƒg‚Å‚È‚¯‚ê‚ÎAæ“¾‚¹‚¸‚ÉƒGƒ‰[‚ğ•Ô‚·
+	///ãƒ–ãƒ­ãƒƒã‚¯ã—ã¤ã¤å–å¾—ã—ã€å¯¾è±¡ãŒã‚ã‚Œã°å·¦ã«è¿½åŠ ã™ã‚‹
+	///@note è¿½åŠ ã™ã‚‹ã¨ãã€ç©ºã‹ãƒªã‚¹ãƒˆã§ãªã‘ã‚Œã°ã€å–å¾—ã›ãšã«ã‚¨ãƒ©ãƒ¼ã‚’è¿”ã™
 	bool server_type::api_bpop_internal(client_type * client, bool left, bool rpoplpush)
 	{
 		auto & keys = client->get_keys();
@@ -36,7 +37,7 @@ namespace rediscpp
 		for (auto it = keys.begin(), end = kend; it != end; ++it) {
 			auto & key = **it;
 			if (in_blocking) {
-				//ƒuƒƒbƒN’†‚ÍƒŠƒXƒgˆÈŠO‚ªİ’è‚³‚ê‚Ä‚à‘Ò‚Â
+				//ãƒ–ãƒ­ãƒƒã‚¯ä¸­ã¯ãƒªã‚¹ãƒˆä»¥å¤–ãŒè¨­å®šã•ã‚Œã¦ã‚‚å¾…ã¤
 				std::shared_ptr<type_interface> value = db->get(key, current);
 				if (!value || !std::dynamic_pointer_cast<type_list>(value)) {
 					continue;
@@ -70,14 +71,14 @@ namespace rediscpp
 					if (list->empty()) {
 						db->erase(key, current);
 					}
-				} catch (std::exception e) {//rpoplpush‚Å‘}“üæ‚ªƒŠƒXƒg‚Å–³‚¢ê‡‚È‚Ç
+				} catch (std::exception e) {//rpoplpushã§æŒ¿å…¥å…ˆãŒãƒªã‚¹ãƒˆã§ç„¡ã„å ´åˆãªã©
 					client->response_error(e.what());
 				}
-				if (in_blocking) {//ƒuƒƒbƒN’†‚É•t‰ğœ
+				if (in_blocking) {//ãƒ–ãƒ­ãƒƒã‚¯ä¸­ã«ä»˜è§£é™¤
 					client->end_blocked();
 					unblocked(client->get());
 				}
-				//V‹K’Ç‰Á‚Ìê‡‚Í’Ê’m‚·‚é
+				//æ–°è¦è¿½åŠ ã®å ´åˆã¯é€šçŸ¥ã™ã‚‹
 				if (created) {
 					if (client->in_exec()) {
 						notify_list_pushed();
@@ -88,27 +89,27 @@ namespace rediscpp
 				return true;
 			}
 		}
-		if (client->in_exec()) {//”ñƒuƒƒbƒN
+		if (client->in_exec()) {//éãƒ–ãƒ­ãƒƒã‚¯
 			client->response_null();
 			return true;
 		}
-		if (in_blocking && !client->still_block()) {//ƒ^ƒCƒ€ƒAƒEƒg
+		if (in_blocking && !client->still_block()) {//ã‚¿ã‚¤ãƒ ã‚¢ã‚¦ãƒˆ
 			client->end_blocked();
 			client->response_null();
 			return true;
 		}
-		if (!in_blocking) {//Å‰‚ÌƒuƒƒbƒN‚ª‹N‚«‚½ê‡
+		if (!in_blocking) {//æœ€åˆã®ãƒ–ãƒ­ãƒƒã‚¯ãŒèµ·ããŸå ´åˆ
 			auto & arguments = client->get_arguments();
 			int64_t timeout = atoi64(arguments.back());
 			client->start_blocked(timeout);
-			timer->insert(timeout, 0);//ƒ^ƒCƒ}[‚ğ’Ç‰Á
-			//ƒuƒƒbƒNƒŠƒXƒg‚É’Ç‰Á
+			timer->insert(timeout, 0);//ã‚¿ã‚¤ãƒãƒ¼ã‚’è¿½åŠ 
+			//ãƒ–ãƒ­ãƒƒã‚¯ãƒªã‚¹ãƒˆã«è¿½åŠ 
 			blocked(client->get());
 		}
 		throw blocked_exception("blocking");
 	}
-	///æ“¾‚µA‘ÎÛ‚ª‚ ‚ê‚Î¶‚É’Ç‰Á‚·‚é
-	///@note ’Ç‰Á‚·‚é‚Æ‚«A‹ó‚©ƒŠƒXƒg‚Å‚È‚¯‚ê‚ÎAæ“¾‚¹‚¸‚ÉƒGƒ‰[‚ğ•Ô‚·
+	///å–å¾—ã—ã€å¯¾è±¡ãŒã‚ã‚Œã°å·¦ã«è¿½åŠ ã™ã‚‹
+	///@note è¿½åŠ ã™ã‚‹ã¨ãã€ç©ºã‹ãƒªã‚¹ãƒˆã§ãªã‘ã‚Œã°ã€å–å¾—ã›ãšã«ã‚¨ãƒ©ãƒ¼ã‚’è¿”ã™
 	bool server_type::api_rpoplpush(client_type * client)
 	{
 		auto current = client->get_time();
@@ -137,7 +138,7 @@ namespace rediscpp
 			db->erase(key, current);
 		}
 		client->response_bulk(result);
-		//V‹K’Ç‰Á‚Ìê‡‚Í’Ê’m‚·‚é
+		//æ–°è¦è¿½åŠ ã®å ´åˆã¯é€šçŸ¥ã™ã‚‹
 		if (created) {
 			if (client->in_exec()) {
 				notify_list_pushed();
@@ -147,31 +148,31 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///¶‘¤‚Ö’Ç‰Á
+	///å·¦å´ã¸è¿½åŠ 
 	///@note Available since 1.0.0.
 	bool server_type::api_lpush(client_type * client)
 	{
 		return api_lpush_internal(client, true, false);
 	}
-	///¶‘¤‚ÖƒŠƒXƒg‚ª‚ ‚ê‚Î’Ç‰Á
+	///å·¦å´ã¸ãƒªã‚¹ãƒˆãŒã‚ã‚Œã°è¿½åŠ 
 	///@note Available since 2.2.0.
 	bool server_type::api_lpushx(client_type * client)
 	{
 		return api_lpush_internal(client, true, true);
 	}
-	///‰E‘¤‚Ö’Ç‰Á
+	///å³å´ã¸è¿½åŠ 
 	///@note Available since 1.0.0.
 	bool server_type::api_rpush(client_type * client)
 	{
 		return api_lpush_internal(client, false, false);
 	}
-	///‰E‘¤‚ÖƒŠƒXƒg‚ª‚ ‚ê‚Î’Ç‰Á
+	///å³å´ã¸ãƒªã‚¹ãƒˆãŒã‚ã‚Œã°è¿½åŠ 
 	///@note Available since 2.2.0.
 	bool server_type::api_rpushx(client_type * client)
 	{
 		return api_lpush_internal(client, false, true);
 	}
-	///ƒŠƒXƒg‚Ö’Ç‰Á
+	///ãƒªã‚¹ãƒˆã¸è¿½åŠ 
 	bool server_type::api_lpush_internal(client_type * client, bool left, bool exist)
 	{
 		auto & key = client->get_argument(1);
@@ -202,7 +203,7 @@ namespace rediscpp
 			list->update(current);
 		}
 		client->response_integer(list->size());
-		//V‹K’Ç‰Á‚Ì’Ê’m
+		//æ–°è¦è¿½åŠ æ™‚ã®é€šçŸ¥
 		if (created) {
 			if (client->in_exec()) {
 				notify_list_pushed();
@@ -212,7 +213,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒŠƒXƒg‚Ìw’è‚Ì’l‚ª‚ ‚ê‚ÎA‚»‚Ì‘O‚©Œã‚ë‚Ö’Ç‰Á
+	///ãƒªã‚¹ãƒˆã®æŒ‡å®šã®å€¤ãŒã‚ã‚Œã°ã€ãã®å‰ã‹å¾Œã‚ã¸è¿½åŠ 
 	bool server_type::api_linsert(client_type * client)
 	{
 		auto side = client->get_argument(2);
@@ -236,19 +237,19 @@ namespace rediscpp
 		client->response_integer(list->size());
 		return true;
 	}
-	///¶‚©‚çæ“¾
+	///å·¦ã‹ã‚‰å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_lpop(client_type * client)
 	{
 		return api_lpop_internal(client, true);
 	}
-	///‰E‚©‚çæ“¾
+	///å³ã‹ã‚‰å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_rpop(client_type * client)
 	{
 		return api_lpop_internal(client, false);
 	}
-	///ƒŠƒXƒg‚©‚çæ“¾
+	///ãƒªã‚¹ãƒˆã‹ã‚‰å–å¾—
 	bool server_type::api_lpop_internal(client_type * client, bool left)
 	{
 		auto & key = client->get_argument(1);
@@ -268,7 +269,7 @@ namespace rediscpp
 		client->response_bulk(value);
 		return true;
 	}
-	///ƒŠƒXƒg‚Ì’·‚³
+	///ãƒªã‚¹ãƒˆã®é•·ã•
 	///@note Available since 1.0.0.
 	bool server_type::api_llen(client_type * client)
 	{
@@ -283,7 +284,7 @@ namespace rediscpp
 		client->response_integer(list->size());
 		return true;
 	}
-	///w’èˆÊ’u‚Ì’l‚ğæ“¾
+	///æŒ‡å®šä½ç½®ã®å€¤ã‚’å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_lindex(client_type * client)
 	{
@@ -307,7 +308,7 @@ namespace rediscpp
 		client->response_bulk(*it);
 		return true;
 	}
-	///w’èˆÊ’u‚Ì”ÍˆÍ‚ğæ“¾
+	///æŒ‡å®šä½ç½®ã®ç¯„å›²ã‚’å–å¾—
 	///@note Available since 1.0.0.
 	bool server_type::api_lrange(client_type * client)
 	{
@@ -333,7 +334,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///ƒŠƒXƒg‚©‚çw’è‚Ì’l‚ğíœ
+	///ãƒªã‚¹ãƒˆã‹ã‚‰æŒ‡å®šã®å€¤ã‚’å‰Šé™¤
 	bool server_type::api_lrem(client_type * client)
 	{
 		auto & key = client->get_argument(1);
@@ -355,7 +356,7 @@ namespace rediscpp
 		client->response_integer(removed);
 		return true;
 	}
-	///ƒŠƒXƒg‚Ì—LŒø”ÍˆÍ‚ğw’è‚µ‚Äc‚è‚ğíœ‚·‚é
+	///ãƒªã‚¹ãƒˆã®æœ‰åŠ¹ç¯„å›²ã‚’æŒ‡å®šã—ã¦æ®‹ã‚Šã‚’å‰Šé™¤ã™ã‚‹
 	bool server_type::api_ltrim(client_type * client)
 	{
 		auto & key = client->get_argument(1);
@@ -377,7 +378,7 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
-	///ƒŠƒXƒg‚Ìw’èˆÊ’u‚Ì’l‚ğ•ÏX‚·‚é
+	///ãƒªã‚¹ãƒˆã®æŒ‡å®šä½ç½®ã®å€¤ã‚’å¤‰æ›´ã™ã‚‹
 	bool server_type::api_lset(client_type * client)
 	{
 		auto & key = client->get_argument(1);

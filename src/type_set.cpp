@@ -127,7 +127,7 @@ namespace rediscpp
 		return front;
 		/*/
 	}
-	///d•¡‚ğ‹–‚µ‚ÄcountŒÂ‚Ì—v‘f‚ğ‘I‘ğ‚·‚é
+	///é‡è¤‡ã‚’è¨±ã—ã¦countå€‹ã®è¦ç´ ã‚’é¸æŠã™ã‚‹
 	bool type_set::type_set::srandmember(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
 	{
 		result.clear();
@@ -143,7 +143,7 @@ namespace rediscpp
 		}
 		return true;
 	}
-	///d•¡‚ğ‹–‚³‚¸‚ÉcountŒÂ‚Ì—v‘f‚ğ‘I‘ğ‚·‚é
+	///é‡è¤‡ã‚’è¨±ã•ãšã«countå€‹ã®è¦ç´ ã‚’é¸æŠã™ã‚‹
 	bool type_set::srandmember_distinct(size_t count, std::vector<std::set<std::string>::const_iterator> & result) const
 	{
 		result.clear();

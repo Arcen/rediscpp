@@ -31,8 +31,8 @@ namespace rediscpp
 		{
 			bool operator()(const std::shared_ptr<value_type> & lhs, const std::shared_ptr<value_type> & rhs) const;
 		};
-		std::map<std::string, std::shared_ptr<value_type>> value;//’l‚Åƒ†ƒj[ƒN‚ÈW‡
-		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//ƒXƒRƒA‚Å•À‚×‚½ó‘Ô
+		std::map<std::string, std::shared_ptr<value_type>> value;//å€¤ã§ãƒ¦ãƒ‹ãƒ¼ã‚¯ãªé›†åˆ
+		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//ã‚¹ã‚³ã‚¢ã§ä¸¦ã¹ãŸçŠ¶æ…‹
 	public:
 		typedef std::set<std::shared_ptr<value_type>, score_comparer>::const_iterator const_iterator;
 		type_zset(const timeval_type & current);

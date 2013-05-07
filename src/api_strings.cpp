@@ -1,4 +1,5 @@
 #include "server.h"
+#include "client.h"
 #include "type_string.h"
 
 namespace rediscpp
@@ -98,12 +99,12 @@ namespace rediscpp
 		auto & key = *client->get_keys()[0];
 		auto & value = *client->get_values()[0];
 		if (nx) {//存在を確認する
-			if (db->get(key, current).get()) {
+			if (db->get(key, current)) {
 				client->response_null();
 				return true;
 			}
 		} else if (xx) {
-			if (!db->get(key, current).get()) {
+			if (!db->get(key, current)) {
 				client->response_null();
 				return true;
 			}
@@ -170,11 +171,11 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto value = db->get_string(key, current);
-		if (!value.get()) {
+		if (!value) {
 			client->response_null();
 			return true;
 		}
-		auto & string = value->get();
+		const auto & string = value->get();
 		int64_t start = pos_fix(atoi64(client->get_argument(2)), string.size());
 		int64_t end = std::min<int64_t>(string.size(), pos_fix(atoi64(client->get_argument(3)), string.size()) + 1);
 		if (end <= start) {
@@ -232,7 +233,7 @@ namespace rediscpp
 			db->replace(key, value);
 			client->response_null();
 		} else {
-			client->response_bulk(value->get());
+			client->response_bulk(value->ref());
 			value->set(newstr);
 			value->update(current);
 		}
@@ -404,11 +405,18 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		bool is_valid = true;
 		auto value = db->get_string(key, current);
-		int64_t newval = incrby(value ? value->get() : "0", count);
-		std::shared_ptr<type_string> str(new type_string(format("%"PRId64, newval), current));
-		db->replace(key, str);
+		bool created = false;
+		if (!value) {
+			value.reset(new type_string("0", current));
+			created = true;
+		}
+		int64_t newval = value->incrby(count);
+		if (!created) {
+			value->update(current);
+		} else {
+			db->replace(key, value);
+		}
 		client->response_integer(newval);
 		return true;
 	}
@@ -426,7 +434,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto value = db->get_string(key, current);
 		auto & increment = client->get_argument(2);
-		std::string newstr = incrbyfloat(value ? value->get() : "0", increment);
+		std::string newstr = incrbyfloat(value ? value->ref() : "0", increment);
 		std::shared_ptr<type_string> str(new type_string(newstr, current));
 		db->replace(key, str);
 		client->response_bulk(newstr);
@@ -443,11 +451,11 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto value = db->get_string(key, current);
-		if (!value.get()) {
+		if (!value) {
 			client->response_integer0();
 			return true;
 		}
-		auto & string = value->get();
+		const auto & string = value->get();
 		auto & arguments = client->get_arguments();
 		int64_t start = pos_fix(arguments.size() < 3 ? 0 : atoi64(client->get_argument(2)), string.size());
 		int64_t end = std::min<int64_t>(string.size(), pos_fix(arguments.size() < 4 ? -1 : atoi64(client->get_argument(3)), string.size()) + 1);
@@ -491,7 +499,7 @@ namespace rediscpp
 			auto srcvalue = db->get_string(key, current);
 			if (srcvalue) {
 				srcvalues.push_back(&srcvalue->ref());
-				size_t size = srcvalue->get().size();
+				size_t size = srcvalue->ref().size();
 				min_size = std::min(min_size, size);
 				max_size = std::max(max_size, size);
 			} else {
@@ -568,11 +576,11 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		auto value = db->get_string(key, current);
-		if (!value.get()) {
+		if (!value) {
 			client->response_integer0();
 			return true;
 		}
-		auto & string = value->get();
+		const auto & string = value->get();
 		int64_t offset_byte = offset / 8;
 		if (string.size() <= offset_byte) {
 			client->response_integer0();
@@ -608,7 +616,7 @@ namespace rediscpp
 		auto value = db->get_string(key, current);
 		int64_t offset_byte = offset / 8;
 		int64_t offset_bit = offset % 8;
-		if (!value.get()) {
+		if (!value) {
 			std::string string(offset_byte + 1, '\0');
 			if (set) {
 				*string.rbegin() = static_cast<char>(0x80 >> offset_bit);
