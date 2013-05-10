@@ -53,6 +53,7 @@ namespace rediscpp
 		void regist_expiring_key(timeval_type tv, const std::string & key) const;
 		void flush_expiring_key(const timeval_type & current);
 		void match(std::unordered_set<std::string> & result, const std::string & pattern) const;
+		std::pair<std::unordered_map<std::string,std::shared_ptr<type_interface>>::const_iterator,std::unordered_map<std::string,std::shared_ptr<type_interface>>::const_iterator> range() const { return std::make_pair(values.begin(), values.end()); }
 	};
 };
 

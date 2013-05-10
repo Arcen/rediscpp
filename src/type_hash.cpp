@@ -9,7 +9,7 @@ namespace rediscpp
 	type_hash::~type_hash()
 	{
 	}
-	std::string type_hash::get_type()
+	std::string type_hash::get_type() const
 	{
 		return std::string("hash");
 	}

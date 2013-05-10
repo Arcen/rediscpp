@@ -19,13 +19,15 @@ namespace rediscpp
 	public:
 		type_interface(const timeval_type & current);
 		virtual ~type_interface();
-		virtual std::string get_type() = 0;
+		virtual std::string get_type() const = 0;
+		virtual int get_int_type() const = 0;
 		bool is_expired(const timeval_type & current);
 		void expire(const timeval_type & at);
 		void persist();
 		bool is_expiring() const;
 		timeval_type get_last_modified_time() const;
 		timeval_type ttl(const timeval_type & current) const;
+		timeval_type at() const { expire_time; }
 		void update(const timeval_type & current);
 	};
 };

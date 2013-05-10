@@ -1,6 +1,12 @@
 #include "server.h"
 #include "client.h"
 #include "log.h"
+#include "file.h"
+#include "type_string.h"
+#include "type_list.h"
+#include "type_set.h"
+#include "type_zset.h"
+#include "type_hash.h"
 #include <ctype.h>
 #include <signal.h>
 
@@ -488,5 +494,150 @@ namespace rediscpp
 		if (!client) return;
 		mutex_locker locker(blocked_mutex);
 		blocked_clients.insert(client);
+	}
+	enum constants {
+		version = 6,
+		op_eof = 255,
+		op_selectdb = 254,
+		op_expire = 253,
+		op_expire_ms = 252,
+		len_6bit = 0 << 6,
+		len_14bit = 1 << 6,
+		len_32bit = 2 << 6,
+		double_nan = 253,
+		double_pinf = 254,
+		double_ninf = 255,
+		int_type_string = 0,
+		int_type_list = 1,
+		int_type_set = 2,
+		int_type_zset = 3,
+		int_type_hash = 4,
+	};
+
+	static void write_len(std::shared_ptr<file_type> & f, uint32_t len)
+	{
+		if (len < 0x40) {//6bit (8-2)
+			f->write8(len/* | len_6bit*/);
+		} else if (len < 0x4000) {//14bit (16-2)
+			f->write8((len >> 8) | len_14bit);
+			f->write8(len & 0xFF);
+		} else {
+			f->write8(len_32bit);
+			f->write(&len, 4);
+		}
+	}
+	static void write_string(std::shared_ptr<file_type> & f, const std::string & str)
+	{
+		write_len(f, str.size());
+		f->write(str);
+	}
+	static void write_double(std::shared_ptr<file_type> & f, double val)
+	{
+		if (isnan(val)) {
+			f->write8(double_nan);
+		} else if (isinf(val)) {
+			f->write8(val < 0 ? double_ninf : double_pinf);
+		} else {
+			write_string(f, format("%.17g", val));
+		}
+	}
+
+	bool server_type::save(const std::string & path)
+	{
+		std::shared_ptr<file_type> f = file_type::create(path);
+		if (!f) {
+			return false;
+		}
+		try {
+			timeval_type current;
+			f->printf("REDIS%04d", version);
+			for (size_t i = 0, n = databases.size(); i < n; ++i ) {
+				auto & db = *databases[i];
+				auto range = db.range();
+				if (range.first == range.second) {
+					continue;
+				}
+				//selectdb i
+				f->write8(op_selectdb);
+				write_len(f, i);
+
+				for (auto it = range.first; it != range.second; ++it) {
+					auto & kv = *it;
+					auto & key = kv.first;
+					auto & value = kv.second;
+					if (value->is_expired(current)) {
+						continue;
+					}
+					if (value->is_expiring()) {
+						f->write8(op_expire_ms);
+						f->write64(value->at().get_ms());
+					}
+					const int value_type = value->get_int_type();
+					f->write8(value_type);
+					write_string(f, key);
+					switch (value_type) {
+					case int_type_string:
+						{
+							std::shared_ptr<type_string> str = std::dynamic_pointer_cast<type_string>(value);
+							write_string(f, str->ref());
+						}
+						break;
+					case int_type_list:
+						{
+							std::shared_ptr<type_list> list = std::dynamic_pointer_cast<type_list>(value);
+							write_len(f, list->size());
+							auto range = list->get_range();
+							for (auto it = range.first; it != range.second; ++it) {
+								auto & str = *it;
+								write_string(f, str);
+							}
+						}
+						break;
+					case int_type_set:
+						{
+							std::shared_ptr<type_set> set = std::dynamic_pointer_cast<type_set>(value);
+							write_len(f, set->size());
+							auto range = set->smembers();
+							for (auto it = range.first; it != range.second; ++it) {
+								auto & str = *it;
+								write_string(f, str);
+							}
+						}
+						break;
+					case int_type_zset:
+						{
+							std::shared_ptr<type_zset> zset = std::dynamic_pointer_cast<type_zset>(value);
+							write_len(f, zset->size());
+							auto range = zset->zrange();
+							for (auto it = range.first; it != range.second; ++it) {
+								auto & pair = *it;
+								write_string(f, pair->member);
+								write_double(f, pair->score);
+							}
+						}
+						break;
+					case int_type_hash:
+						{
+							std::shared_ptr<type_hash> hash = std::dynamic_pointer_cast<type_hash>(value);
+							write_len(f, hash->size());
+							auto range = hash->hgetall();
+							for (auto it = range.first; it != range.second; ++it) {
+								auto & pair = *it;
+								write_string(f, pair.first);
+								write_string(f, pair.second);
+							}
+						}
+						break;
+					}
+				}
+			}
+			f->write8(op_eof);
+			f->write_crc();
+
+		} catch (std::exception e) {
+			::unlink(path.c_str());
+			return false;
+		}
+		return true;
 	}
 }

@@ -151,6 +151,7 @@ namespace rediscpp
 		}
 		int64_t incrby(const std::string & value, int64_t count);
 		std::string incrbyfloat(const std::string & value, const std::string & count);
+		bool save(const std::string & path);
 
 		//connection api
 		bool api_auth(client_type * client);

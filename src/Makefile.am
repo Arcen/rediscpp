@@ -7,6 +7,7 @@ rediscpp_SOURCES = \
     database.cpp \
     log.cpp \
     timeval.cpp \
+    crc64.cpp \
     common.cpp \
     api_connection.cpp \
     api_server.cpp \

@@ -104,6 +104,9 @@
     <ClCompile Include="src\network.cpp">
       <Filter>src\util</Filter>
     </ClCompile>
+    <ClCompile Include="src\crc64.cpp">
+      <Filter>src\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\server.h">
@@ -146,6 +149,12 @@
       <Filter>src\util</Filter>
     </ClInclude>
     <ClInclude Include="src\network.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\file.h">
+      <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\crc64.h">
       <Filter>src\util</Filter>
     </ClInclude>
   </ItemGroup>

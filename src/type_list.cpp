@@ -16,7 +16,7 @@ namespace rediscpp
 	type_list::~type_list()
 	{
 	}
-	std::string type_list::get_type()
+	std::string type_list::get_type() const
 	{
 		return std::string("list");
 	}

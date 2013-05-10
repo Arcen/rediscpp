@@ -25,6 +25,10 @@ namespace rediscpp
 		timeval_type operator+(const timeval_type & rhs) const { return timeval_type(*this) += rhs; }
 		timeval_type operator-(const timeval_type & rhs) const { return timeval_type(*this) -= rhs; }
 
+		uint64_t get_ms() const
+		{
+			return static_cast<uint64_t>(tv_sec) * 1000ULL + static_cast<uint64_t>(tv_usec / 1000);
+		}
 		timespec get_timespec() const
 		{
 			timespec ts;

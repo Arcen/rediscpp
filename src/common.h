@@ -1,6 +1,12 @@
 #ifndef INCLUDE_REDIS_CPP_COMMON_H
 #define INCLUDE_REDIS_CPP_COMMON_H
 
+#ifndef _BSD_SOURCE
+#define _BSD_SOURCE
+#endif
+
+#include <endian.h>
+
 #include <functional>
 #include <string.h>
 #include <string>

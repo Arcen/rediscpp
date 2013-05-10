@@ -13,7 +13,8 @@ namespace rediscpp
 		type_list(const timeval_type & current);
 		type_list(std::list<std::string> && value_, const timeval_type & current);
 		virtual ~type_list();
-		virtual std::string get_type();
+		virtual std::string get_type() const;
+		virtual int get_int_type() const { return 1; }
 		void lpush(const std::vector<std::string*> & elements);
 		void rpush(const std::vector<std::string*> & elements);
 		bool linsert(const std::string & pivot, const std::string & element, bool before);

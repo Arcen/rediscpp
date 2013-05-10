@@ -14,7 +14,8 @@ namespace rediscpp
 		type_string(const std::string & string_value_, const timeval_type & current);
 		type_string(std::string && string_value_, const timeval_type & current);
 		virtual ~type_string();
-		virtual std::string get_type();
+		virtual std::string get_type() const;
+		virtual int get_int_type() const { return 0; }
 		std::string get() const;
 		std::string & ref();
 		void set(const std::string & str);

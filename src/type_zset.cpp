@@ -70,7 +70,7 @@ namespace rediscpp
 	type_zset::~type_zset()
 	{
 	}
-	std::string type_zset::get_type()
+	std::string type_zset::get_type() const
 	{
 		return std::string("zset");
 	}

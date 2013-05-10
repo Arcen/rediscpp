@@ -11,7 +11,8 @@ namespace rediscpp
 	public:
 		type_set(const timeval_type & current);
 		virtual ~type_set();
-		virtual std::string get_type();
+		virtual std::string get_type() const;
+		virtual int get_int_type() const { return 2; }
 		size_t sadd(const std::vector<std::string*> & members);
 		size_t scard() const;
 		bool sismember(const std::string & member) const;

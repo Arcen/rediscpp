@@ -7,7 +7,7 @@ namespace rediscpp
 	{
 	}
 	type_set::~type_set(){}
-	std::string type_set::get_type()
+	std::string type_set::get_type() const
 	{
 		return std::string("set");
 	}

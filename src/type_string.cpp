@@ -26,7 +26,7 @@ namespace rediscpp
 	type_string::~type_string()
 	{
 	}
-	std::string type_string::get_type()
+	std::string type_string::get_type() const
 	{
 		return std::string("string");
 	}

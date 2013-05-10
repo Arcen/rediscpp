@@ -11,7 +11,8 @@ namespace rediscpp
 	public:
 		type_hash(const timeval_type & current);
 		virtual ~type_hash();
-		virtual std::string get_type();
+		virtual std::string get_type() const;
+		virtual int get_int_type() const { return 4; }
 		size_t hdel(const std::vector<std::string*> & fields);
 		bool hexists(const std::string field) const;
 		bool empty() const;
