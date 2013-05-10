@@ -538,8 +538,54 @@ namespace rediscpp
 		} else if (isinf(val)) {
 			f->write8(val < 0 ? double_ninf : double_pinf);
 		} else {
+			const std::string & str = std::move(format("%.17g", val));
+			f->write8(str.size());
 			write_string(f, format("%.17g", val));
 		}
+	}
+	static uint32_t read_len(std::shared_ptr<file_type> & f)
+	{
+		uint8_t head = f->read8();
+		switch (head & 0xC0) {
+		case len_6bit:
+			return head & 0x3F;
+		case len_14bit:
+			return ((head & 0x3F) << 8) | f->read8();
+		case len_32bit:
+			return f->read32();
+		default:
+			throw std::runtime_error("length invalid");
+		}
+	}
+	static std::string read_string(std::shared_ptr<file_type> & f)
+	{
+		uint32_t len = read_len(f);
+		if (!len) return std::move(std::string());
+		std::string str(len, '\0');
+		f->read(&str[0], len);
+		return std::move(str);
+	}
+	static double read_double(std::shared_ptr<file_type> & f)
+	{
+		uint8_t head = f->read8();
+		switch (head) {
+		case double_nan:
+			return strtod("nan", NULL);
+		case double_ninf:
+			return strtod("-inf", NULL);
+		case double_pinf:
+			return strtod("inf", NULL);
+		case 0:
+			throw std::runtime_error("invalid double");
+		}
+		std::string str(head, '\0');
+		f->read(&str[0], head);
+		bool is_valid = true;
+		double d = atod(str, is_valid);
+		if (!is_valid) {
+			throw std::runtime_error("invalid double");
+		}
+		return d;
 	}
 
 	bool server_type::save(const std::string & path)
@@ -549,6 +595,11 @@ namespace rediscpp
 			return false;
 		}
 		try {
+			//全ロック
+			std::vector<std::shared_ptr<database_read_locker>> lockers(databases.size());
+			for (size_t i = 0; i < databases.size(); ++i) {
+				lockers[i].reset(new database_read_locker(databases[i].get(), NULL));
+			}
 			timeval_type current;
 			f->printf("REDIS%04d", version);
 			for (size_t i = 0, n = databases.size(); i < n; ++i ) {
@@ -633,9 +684,136 @@ namespace rediscpp
 			}
 			f->write8(op_eof);
 			f->write_crc();
-
 		} catch (std::exception e) {
 			::unlink(path.c_str());
+			return false;
+		}
+		return true;
+	}
+	bool server_type::load(const std::string & path)
+	{
+		std::shared_ptr<file_type> f = file_type::open(path);
+		if (!f) {
+			return false;
+		}
+		try {
+			timeval_type current;
+			char buf[128] = {0};
+			f->read(buf, 9);
+			if (memcmp(buf, "REDIS", 5)) {
+				throw std::runtime_error("Not found REDIS header");
+			}
+			int ver = atoi(buf + 5);
+			if (ver < 0 || version < ver) {
+				throw std::runtime_error("Not compatible REDIS version");
+			}
+			//全ロック
+			std::vector<std::shared_ptr<database_write_locker>> lockers(databases.size());
+			for (size_t i = 0; i < databases.size(); ++i) {
+				lockers[i].reset(new database_write_locker(databases[i].get(), NULL, false));
+			}
+			for (int i = 0, n = databases.size(); i < n; ++i) {
+				auto db = writable_db(i, NULL);
+				db->clear();
+			}
+			uint8_t op = 0;
+			uint32_t db_index = 0;
+			auto db = databases[db_index];
+			uint64_t expire_at = 0;
+			while (op != op_eof) {
+				op = f->read8();
+				switch (op) {
+				case op_eof:
+					if (!f->check_crc()) {
+						throw std::runtime_error("corrupted crc");
+					}
+					continue;
+				case op_selectdb:
+					db_index = read_len(f);
+					if (databases.size() <= db_index) {
+						throw std::runtime_error("db index out of range");
+					}
+					db = databases[db_index];
+					continue;
+				case op_expire_ms:
+					expire_at = f->read64();
+					continue;
+				default:
+					{
+						std::string key = read_string(f);
+						std::shared_ptr<type_interface> value;
+						switch (op) {
+						case int_type_string:
+							{
+								std::shared_ptr<type_string> str(new type_string(read_string(f), current));
+								value = str;
+							}
+							break;
+						case int_type_list:
+							{
+								std::shared_ptr<type_list> list(new type_list(current));
+								value = list;
+								uint32_t count = read_len(f);
+								for (uint32_t i = 0; i < count; ++i) {
+									list->rpush(read_string(f));
+								}
+							}
+							break;
+						case int_type_set:
+							{
+								std::shared_ptr<type_set> set(new type_set(current));
+								value = set;
+								uint32_t count = read_len(f);
+								std::vector<std::string *> members(1, NULL);
+								for (uint32_t i = 0; i < count; ++i) {
+									auto strval = std::move(read_string(f));
+									members[0] = &strval;
+									set->sadd(members);
+								}
+							}
+							break;
+						case int_type_zset:
+							{
+								std::shared_ptr<type_zset> zset(new type_zset(current));
+								value = zset;
+								uint32_t count = read_len(f);
+								std::vector<double> scores(1, NULL);
+								std::vector<std::string *> members(1, NULL);
+								for (uint32_t i = 0; i < count; ++i) {
+									auto strval = std::move(read_string(f));
+									scores[0] = read_double(f);
+									members[0] = &strval;
+									zset->zadd(scores, members);
+								}
+							}
+							break;
+						case int_type_hash:
+							{
+								std::shared_ptr<type_hash> hash(new type_hash(current));
+								value = hash;
+								uint32_t count = read_len(f);
+								for (uint32_t i = 0; i < count; ++i) {
+									auto strkey = std::move(read_string(f));
+									auto strval = std::move(read_string(f));
+									hash->hset(strkey, strval);
+								}
+							}
+							break;
+						}
+						if (expire_at) {
+							value->expire(timeval_type(expire_at / 1000, (expire_at % 1000) * 1000));
+							expire_at = 0;
+						}
+						db->insert(key, value, current);
+					}
+					break;
+				}
+			}
+		} catch (std::exception e) {
+			lprintf(__FILE__, __LINE__, info_level, "exception:%s", e.what());
+			return false;
+		} catch (...) {
+			lprintf(__FILE__, __LINE__, info_level, "exception");
 			return false;
 		}
 		return true;
