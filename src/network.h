@@ -99,7 +99,7 @@ namespace rediscpp
 	class socket_type : public pollable_type
 	{
 		std::shared_ptr<address_type> local;
-		//std::shared_ptr<address_type> peer;///<リモートアドレス
+		std::shared_ptr<address_type> peer;///<リモートアドレス
 		bool finished_to_read;
 		bool finished_to_write;
 		int shutdowning;
@@ -114,7 +114,10 @@ namespace rediscpp
 		bool set_nonblocking(bool nonblocking = true);
 		bool set_reuse(bool reuse = true);
 		bool set_nodelay(bool nodelay = true);
+		bool set_keepalive(bool keepalive, int idle, int interval, int count);
 		bool bind(std::shared_ptr<address_type> address);
+		bool connect(std::shared_ptr<address_type> address);
+		bool is_connected();
 		bool listen(int queue_count);
 		std::shared_ptr<socket_type> accept();
 		bool is_broken() const { return broken; }

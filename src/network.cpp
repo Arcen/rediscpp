@@ -192,6 +192,75 @@ namespace rediscpp
 		local = address;
 		return true;
 	}
+	bool socket_type::connect(std::shared_ptr<address_type> address)
+	{
+		peer = address;
+		int r = 0;
+		int interupt_count = 0;
+		while (true) {
+			r = ::connect(fd, address->get_sockaddr(), address->get_sockaddr_size());
+			if (r < 0 && errno == EINTR) {
+				if (interupt_count < 3) {
+					++interupt_count;
+					continue;
+				}
+			}
+			break;
+		}
+		if (r < 0) {
+			switch (errno) {
+			case EINPROGRESS:
+			case EALREADY:
+				break;
+			default:
+				lputs(__FILE__, __LINE__, error_level, "::connect failed : " + string_error(errno));
+				return false;
+			}
+		}
+		if (!set_keepalive(true, 60, 30, 4)) {
+			return false;
+		}
+		return true;
+	}
+	bool socket_type::set_keepalive(bool keepalive, int idle, int interval, int count)
+	{
+		int option = keepalive ? 1 : 0;
+		int r = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void*)&option, sizeof(option));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(SO_KEEPALIVE) failed : " + string_error(errno));
+			return false;
+		}
+		if (!keepalive) {
+			return true;
+		}
+		r = setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (void*)&idle, sizeof(idle));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(TCP_KEEPIDLE) failed : " + string_error(errno));
+			return false;
+		}
+		r = setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (void*)&interval, sizeof(interval));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(TCP_KEEPINTVL) failed : " + string_error(errno));
+			return false;
+		}
+		r = setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (void*)&count, sizeof(count));
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::setsockopt(TCP_KEEPCNT) failed : " + string_error(errno));
+			return false;
+		}
+		return true;
+	}
+	bool socket_type::is_connected()
+	{
+		int option = 0;
+		socklen_t optlen = sizeof(option);
+		int r = getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)&option, &optlen);
+		if (r < 0) {
+			lputs(__FILE__, __LINE__, error_level, "::getsockopt(SO_ERROR) failed : " + string_error(errno));
+			return false;
+		}
+		return option == 0;
+	}
 	bool socket_type::listen(int queue_count)
 	{
 		int r = ::listen(fd, queue_count);
@@ -223,7 +292,7 @@ namespace rediscpp
 		}
 		std::shared_ptr<socket_type> child(new socket_type(cs));
 		child->self = child;
-		//child->peer = addr;
+		child->peer = addr;
 		return child;
 	}
 	bool socket_type::send(const void * buf, size_t len)
