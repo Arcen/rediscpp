@@ -387,6 +387,80 @@ namespace rediscpp
 		}
 	}
 	///ソート
+	///@note ソート関数でstoreがあるか調べる
+	bool server_type::api_sort_store(client_type * client)
+	{
+		auto & key = client->get_argument(1);
+		auto & arguments = client->get_arguments();
+		size_t parsed = 2;
+		bool by = false;
+		const size_t size = arguments.size();
+		if (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "BY") {
+				++parsed;
+				if (size <= parsed) {
+					throw std::runtime_error("ERR not found BY pattern");
+				}
+				by = true;
+				++parsed;
+			}
+		}
+		if (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "LIMIT") {
+				parsed += 3;
+				if (size < parsed) {
+					throw std::runtime_error("ERR syntax error, not found limit parameter");
+				}
+			}
+		}
+		while (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "GET") {
+				parsed += 2;
+				if (size < parsed) {
+					throw std::runtime_error("ERR syntax error, not found get pattern");
+				}
+			} else {
+				break;
+			}
+		}
+		if (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "ASC" || keyword == "DESC") {
+				++parsed;
+			}
+		}
+		if (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "ALPHA") {
+				++parsed;
+			}
+		}
+		bool store = false;
+		if (parsed < size) {
+			std::string keyword = arguments[parsed];
+			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
+			if (keyword == "STORE") {
+				parsed += 2;
+				if (size < parsed) {
+					throw std::runtime_error("ERR not found STORE destination");
+				}
+				store = true;
+			}
+		}
+		if (parsed != size) {
+			throw std::runtime_error("ERR syntax error");
+		}
+		return store;
+	}
+	///ソート
 	///@note Available since 1.0.0.
 	bool server_type::api_sort(client_type * client)
 	{
@@ -477,7 +551,7 @@ namespace rediscpp
 			std::transform(keyword.begin(), keyword.end(), keyword.begin(), toupper);
 			if (keyword == "STORE") {
 				++parsed;
-				if (size <= parsed) {
+				if (size < parsed + 1) {
 					throw std::runtime_error("ERR not found STORE destination");
 				}
 				destination = arguments[parsed];

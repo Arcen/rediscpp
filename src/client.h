@@ -29,6 +29,7 @@ namespace rediscpp
 		static const int argument_is_undefined = -2;
 		int db_index;
 		bool transaction;
+		bool writing_transaction;
 		bool multi_executing;
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
@@ -71,7 +72,7 @@ namespace rediscpp
 		bool exec();
 		void discard();
 		bool in_exec() const;
-		bool queuing(const std::string & command);
+		bool queuing(const std::string & command, const api_info & info);
 		void unwatch() { watching.clear(); }
 		void watch(const std::string & key);
 		std::set<std::tuple<std::string,int,timeval_type>> & get_watching() { return watching; }

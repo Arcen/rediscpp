@@ -7,6 +7,7 @@ namespace rediscpp
 	bool client_type::multi()
 	{
 		transaction = true;
+		writing_transaction = false;
 		transaction_arguments.clear();
 		return true;
 	}
@@ -20,13 +21,21 @@ namespace rediscpp
 	{
 		return multi_executing;
 	}
-	bool client_type::queuing(const std::string & command)
+	bool client_type::queuing(const std::string & command, const api_info & info)
 	{
 		if (!transaction) {
 			return false;
 		}
 		if (command == "EXEC" || command == "DISCARD") {
 			return false;
+		}
+		//トランザクション中で、書き込みロックが必要かを調べる
+		if (!writing_transaction) {
+			bool writing = info.writing;
+			if (info.parser) {
+				writing = (server.*(info.parser))(this);
+			}
+			writing_transaction = writing;
 		}
 		transaction_arguments.push_back(arguments);
 		return true;
@@ -58,7 +67,7 @@ namespace rediscpp
 		//全体ロックを行う
 		std::map<int,std::shared_ptr<database_write_locker>> dbs;
 		for (int i = 0; i < databases.size(); ++i) {
-			dbs[i].reset(new database_write_locker(writable_db(i, client)));
+			dbs[i].reset(new database_write_locker(writable_db(i, client, !client->writing_transaction)));
 		}
 		for (auto it = watching.begin(), end = watching.end(); it != end; ++it) {
 			auto & watch = *it;
@@ -80,12 +89,16 @@ namespace rediscpp
 		}
 		auto count = client->get_transaction_size();
 		client->exec();
-		client->response_start_multi_bulk(count);
-		for (auto i = 0; i < count; ++i) {
-			client->unqueue();
-			if (!client->execute()) {
-				client->response_error("ERR unknown");
+		if (count) {
+			client->response_start_multi_bulk(count);
+			for (auto i = 0; i < count; ++i) {
+				client->unqueue();
+				if (!client->execute()) {
+					client->response_error("ERR unknown");
+				}
 			}
+		} else {
+			client->response_null_multi_bulk();
 		}
 		client->discard();
 		return true;

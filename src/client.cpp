@@ -18,6 +18,7 @@ namespace rediscpp
 		, password(password_)
 		, db_index(0)
 		, transaction(false)
+		, writing_transaction(false)
 		, multi_executing(false)
 		, current_time(0, 0)
 		, blocked(false)
@@ -273,12 +274,12 @@ namespace rediscpp
 			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");
 			}
-			if (queuing(command)) {
-				response_queued();
-				return true;
-			}
 			auto it = server.api_map.find(command);
 			if (it != server.api_map.end()) {
+				if (queuing(command, it->second)) {
+					response_queued();
+					return true;
+				}
 				return execute(it->second);
 			}
 			//lprintf(__FILE__, __LINE__, info_level, "not supported command %s", command.c_str());

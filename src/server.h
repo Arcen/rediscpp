@@ -25,15 +25,19 @@ namespace rediscpp
 	struct api_info
 	{
 		api_function_type function;
+		api_function_type parser;
 		size_t min_argc;
 		size_t max_argc;
 		//c : command, s : string, k : key, v : value, d : db index, t : time, i : integer, f : float
 		std::string arg_types;
+		bool writing;
 		api_info()
 			: function(NULL)
+			, parser(NULL)
 			, min_argc(1)
 			, max_argc(1)
 			, arg_types("c")
+			, writing(false)
 		{
 		}
 		api_info & set(api_function_type function_)
@@ -61,6 +65,16 @@ namespace rediscpp
 		api_info & type(const std::string & arg_types_)
 		{
 			arg_types = arg_types_;
+			return *this;
+		}
+		api_info & write()
+		{
+			writing = true;
+			return *this;
+		}
+		api_info & set_parser(api_function_type function_)
+		{
+			parser = function_;
 			return *this;
 		}
 	};
@@ -191,6 +205,7 @@ namespace rediscpp
 		bool api_renamenx(client_type * client);
 		bool api_type(client_type * client);
 		bool api_sort(client_type * client);
+		bool api_sort_store(client_type * client);
 		//strings api
 		bool api_get(client_type * client);
 		bool api_set_internal(client_type * client, bool nx, bool xx, int64_t expire);
