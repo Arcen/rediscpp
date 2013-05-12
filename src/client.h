@@ -14,6 +14,7 @@ namespace rediscpp
 	class client_type
 	{
 		friend class server_type;
+	protected:
 		server_type & server;
 		std::shared_ptr<socket_type> client;
 		arguments_type arguments;
@@ -42,13 +43,13 @@ namespace rediscpp
 		timeval_type blocked_till;
 		std::weak_ptr<client_type> self;
 		uint16_t listening_port;
-		bool master;
 		bool slave;
 		bool monitor;
 		bool wrote;
 		std::shared_ptr<file_type> sending_file;
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
+		virtual ~client_type(){}
 		bool parse();
 		const arguments_type & get_arguments() const { return arguments; }
 		const std::string & get_argument(int index) const { return arguments[index]; }
@@ -89,7 +90,7 @@ namespace rediscpp
 		size_t get_transaction_size() { return transaction_arguments.size(); }
 		bool unqueue();
 		timeval_type get_time() const { return current_time; }
-		void process();
+		virtual void process();
 		void set(std::shared_ptr<client_type> self_) { self = self_; }
 		std::shared_ptr<client_type> get() { return self.lock(); }
 		bool is_blocked() const { return blocked; }
@@ -109,13 +110,12 @@ namespace rediscpp
 		{
 			return blocked && (blocked_till.is_epoc() || current_time < blocked_till);
 		}
-		void set_master() { master = true; }
-		bool is_master() const { return master; }
+		virtual bool is_master() const { return false; }
 		void set_slave() { slave = true; }
 		bool is_slave() const { return slave; }
 		void set_monitor() { monitor = true; }
 		bool is_monitor() const { return monitor; }
-	private:
+	protected:
 		void inline_command_parser(const std::string & line);
 		bool parse_line(std::string & line);
 		bool parse_data(std::string & data, int size);

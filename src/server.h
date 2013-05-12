@@ -96,7 +96,6 @@ namespace rediscpp
 			del_type,
 			list_pushed_type,///<listに値が何か追加された場合
 			slaveof_type,
-			remove_master_type,
 			propagate_type,///<monitor, slave向けの情報
 		};
 		job_types type;
@@ -149,7 +148,7 @@ namespace rediscpp
 		void on_client(socket_type * s, int events);
 		void on_event(event_type * e, int events);
 		void on_timer(timer_type * e, int events);
-		void on_master(int events);
+		void on_master(socket_type * s, int events);
 	public:
 		server_type();
 		~server_type();
@@ -166,7 +165,6 @@ namespace rediscpp
 	private:
 		void remove_client(std::shared_ptr<client_type> client, bool now = false);
 		void append_client(std::shared_ptr<client_type> client, bool now = false);
-		void remove_master(bool now = false);
 		void slaveof(const std::string & host, const std::string & port, bool now = false);
 		void propagete(const std::string & info, bool now = false);
 		void propagete(const arguments_type & info, bool now = false);

@@ -1,23 +1,13 @@
 #ifndef INCLUDE_REDIS_CPP_MASTER_H
 #define INCLUDE_REDIS_CPP_MASTER_H
 
-#include "network.h"
-#include "thread.h"
-#include "file.h"
+#include "client.h"
 
 namespace rediscpp
 {
-	class server_type;
-	struct api_info;
-	class master_type
+	class master_type : public client_type
 	{
 		friend class server_type;
-		server_type & server;
-		std::shared_ptr<socket_type> client;
-		std::string password;
-		timeval_type current_time;
-		int events;//for thread
-		std::weak_ptr<master_type> self;
 		enum status {
 			waiting_pong_state,
 			request_auth_state,
@@ -26,6 +16,7 @@ namespace rediscpp
 			waiting_replconf_state,
 			request_sync_state,
 			waiting_sync_state,
+			writer_state,
 			shutdown_state,
 		};
 		status state;
@@ -34,14 +25,9 @@ namespace rediscpp
 		std::shared_ptr<file_type> sync_file;
 	public:
 		master_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
-		~master_type();
-		void close_after_send() { client->close_after_send(); }
-		timeval_type get_time() const { return current_time; }
-		void process();
-		void set(std::shared_ptr<master_type> self_) { self = self_; }
-		std::shared_ptr<master_type> get() { return self.lock(); }
-	private:
-		bool parse_line(std::string & line);
+		virtual ~master_type();
+		virtual void process();
+		virtual bool is_master() const { return true; }
 	};
 };
 

@@ -148,18 +148,6 @@ namespace rediscpp
 		}
 		server->on_timer(t, events);
 	}
-	void server_type::master_callback(pollable_type * p, int events)
-	{
-		socket_type * s = dynamic_cast<socket_type *>(p);
-		if (!s) {
-			return;
-		}
-		server_type * server = reinterpret_cast<server_type *>(s->get_extra());
-		if (!server) {
-			return;
-		}
-		server->on_master(events);
-	}
 	void server_type::on_server(socket_type * s, int events)
 	{
 		std::shared_ptr<socket_type> cs = s->accept();
@@ -207,9 +195,6 @@ namespace rediscpp
 			case job_type::slaveof_type:
 				slaveof(job->arg1, job->arg2, true);
 				break;
-			case job_type::remove_master_type:
-				remove_master(true);
-				break;
 			case job_type::propagate_type:
 				if (job->arguments.empty()) {
 					propagete(job->arg1, true);
@@ -231,6 +216,10 @@ namespace rediscpp
 	void server_type::on_client(socket_type * s, int events)
 	{
 		std::shared_ptr<client_type> client = reinterpret_cast<client_type *>(s->get_extra2())->get();
+		if (!client) {
+			lprintf(__FILE__, __LINE__, info_level, "unknown client");
+			return;
+		}
 		if ((events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) || s->is_broken()) {
 			//lprintf(__FILE__, __LINE__, info_level, "client closed");
 			remove_client(client);
@@ -252,6 +241,9 @@ namespace rediscpp
 			} else if (client->is_monitor()) {
 				monitors.insert(client);
 				monitoring = true;
+			} else if (client->is_master()) {
+				master = std::dynamic_pointer_cast<master_type>(client);
+				poll->append(client->client);
 			} else {
 				client->client->mod();
 			}
@@ -283,19 +275,6 @@ namespace rediscpp
 			clients.erase(client->client.get());
 		} else {
 			std::shared_ptr<job_type> job(new job_type(job_type::del_type, client));
-			jobs.push(job);
-			event->send();
-		}
-	}
-	void server_type::remove_master(bool now)
-	{
-		if (thread_pool.empty() || now) {
-			if (master) {
-				master->client->close();
-			}
-			master.reset();
-		} else {
-			std::shared_ptr<job_type> job(new job_type(job_type::remove_master_type));
 			jobs.push(job);
 			event->send();
 		}

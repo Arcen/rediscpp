@@ -1,15 +1,11 @@
 #include "master.h"
 #include "server.h"
-#include "client.h"
+#include "file.h"
 
 namespace rediscpp
 {
 	master_type::master_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_)
-		: server(server_)
-		, client(client_)
-		, password(password_)
-		, current_time(0, 0)
-		, events(0)
+		: client_type(server_, client_, password_)
 		, state(waiting_pong_state)
 		, sync_file_size(0)
 	{
@@ -48,17 +44,19 @@ namespace rediscpp
 				}
 				std::shared_ptr<socket_type> connection = socket_type::create(*address);
 				connection->set_extra(this);
-				connection->set_callback(master_callback);
+				connection->set_callback(client_callback);
 				connection->set_nonblocking();
 				if (!connection->connect(address)) {
 					lprintf(__FILE__, __LINE__, error_level, "failed to connect master");
 					return;
 				}
+				std::shared_ptr<client_type> client(new master_type(*this, connection, password));
+				client->set(client);
+				connection->set_extra2(client.get());
 				//@note 送信バッファに設定することで、接続済みのイベントを取得して、送信する
 				std::string ping("*1\r\n$4\r\nPING\r\n");
 				connection->send(ping.c_str(), ping.size());
-				master.reset(new master_type(*this, connection, password));
-				poll->append(connection);
+				append_client(client);
 			}
 		} else {
 			std::shared_ptr<job_type> job(new job_type(job_type::slaveof_type));
@@ -68,45 +66,12 @@ namespace rediscpp
 			event->send();
 		}
 	}
-	void server_type::on_master(int events)
-	{
-		if (!master) {
-			return;
-		}
-		if ((events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) || master->client->is_broken()) {
-			lprintf(__FILE__, __LINE__, debug_level, "remove master");
-			remove_master();
-			return;
-		}
-		master->events = events;
-		master->process();
-		if (master->client->done()) {
-			lprintf(__FILE__, __LINE__, debug_level, "remove master");
-			remove_master();
-		} else {
-			master->client->mod();
-		}
-	}
-	bool master_type::parse_line(std::string & line)
-	{
-		auto & buf = client->get_recv();
-		if (buf.size() < 2) {
-			return false;
-		}
-		auto begin = buf.begin();
-		auto end = buf.end();
-		--end;
-		auto it = std::find(begin, end, '\r');
-		if (it != end) {
-			line.assign(begin, it);
-			std::advance(it, 2);
-			buf.erase(begin, it);
-			return true;
-		}
-		return false;
-	}
 	void master_type::process()
 	{
+		if (state == writer_state) {
+			client_type::process();
+			return;
+		}
 		if (events & EPOLLIN) {//recv
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			client->recv();
@@ -247,19 +212,17 @@ namespace rediscpp
 						}
 						::unlink(sync_file_path.c_str());
 						sync_file_path.clear();
-						client->set_callback(server_type::client_callback);
-						std::shared_ptr<client_type> master_client(new client_type(server, client, ""));
-						master_client->set(master_client);
-						client->set_extra2(master_client.get());
-						master_client->set_master();//マスターとして取り扱う
-						server.append_client(master_client);
-						return;
+						state = writer_state;
+						continue;
 					}
 				} else {
 					lprintf(__FILE__, __LINE__, error_level, "failed to get sync file object");
 					state = shutdown_state;
 					continue;
 				}
+				return;
+			case writer_state:
+				client_type::process();
 				return;
 			case shutdown_state:
 			default:

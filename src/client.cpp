@@ -24,7 +24,6 @@ namespace rediscpp
 		, blocked(false)
 		, blocked_till(0, 0)
 		, listening_port(0)
-		, master(false)
 		, slave(false)
 		, monitor(false)
 		, wrote(false)
