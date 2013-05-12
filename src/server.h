@@ -125,6 +125,7 @@ namespace rediscpp
 		mutex_type blocked_mutex;
 		std::set<std::shared_ptr<client_type>> blocked_clients;
 		std::shared_ptr<socket_type> listening;
+		uint16_t listening_port;
 		std::map<std::string,std::string> store;
 		std::string password;
 		std::vector<std::shared_ptr<database_type>> databases;

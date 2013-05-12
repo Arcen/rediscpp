@@ -17,6 +17,7 @@ namespace rediscpp
 		: shutdown(false)
 		, slave(false)
 		, slave_mutex(true)
+		, listening_port(0)
 	{
 		signal(SIGPIPE, SIG_IGN);
 		databases.resize(1);
@@ -40,7 +41,8 @@ namespace rediscpp
 		std::shared_ptr<address_type> addr(new address_type);
 		addr->set_hostname(hostname.c_str());
 		bool is_valid;
-		addr->set_port(atou16(port, is_valid));
+		listening_port = atou16(port, is_valid);
+		addr->set_port(listening_port);
 		listening = socket_type::create(*addr);
 		listening->set_reuse();
 		if (!listening->bind(addr)) {
@@ -245,7 +247,7 @@ namespace rediscpp
 	void server_type::append_client(std::shared_ptr<client_type> client, bool now)
 	{
 		if (thread_pool.empty() || now) {
-			if (!client->is_master() && !client->is_monitor()) {
+			if (!client->is_master() && !client->is_monitor() && !client->is_slave()) {
 				poll->append(client->client);
 			} else if (client->is_monitor()) {
 				monitors.insert(client);
@@ -273,6 +275,10 @@ namespace rediscpp
 			if (client->is_monitor()) {
 				monitors.erase(client);
 				monitoring = ! monitors.empty();
+			}
+			if (client->is_slave()) {
+				mutex_locker locker(slave_mutex);
+				slaves.erase(client);
 			}
 			clients.erase(client->client.get());
 		} else {
@@ -351,7 +357,6 @@ namespace rediscpp
 	void server_type::propagete(const arguments_type & info, bool now)
 	{
 		if (thread_pool.empty() || now) {
-			lprintf(__FILE__, __LINE__, info_level, "post to slave now");
 			mutex_locker locker(slave_mutex);
 			for (auto it = slaves.begin(), end = slaves.end(); it != end; ++it) {
 				auto & to = *it;

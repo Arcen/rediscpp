@@ -60,6 +60,8 @@ namespace rediscpp
 			if (is_slave()) {
 				if (!client->is_sendfile() && sending_file) {
 					sending_file.reset();
+					flush();
+					client->send();
 				}
 			}
 		}
@@ -103,7 +105,6 @@ namespace rediscpp
 						arguments.clear();
 						arguments.resize(argument_count);
 					} else if (type == '+' || type == '-') {//response from slave
-						lprintf(__FILE__, __LINE__, debug_level, "recv response from slave ? %s", arg_count.c_str());
 						continue;
 					} else {
 						inline_command_parser(arg_count);
@@ -228,6 +229,10 @@ namespace rediscpp
 	void client_type::response_raw(const std::string & raw)
 	{
 		mutex_locker locker(write_mutex);
+		if (client->is_sendfile()) {
+			write_cache.insert(write_cache.end(), raw.begin(), raw.end());
+			return;
+		}
 		if (raw.size() <= write_cache.capacity() - write_cache.size()) {
 			write_cache.insert(write_cache.end(), raw.begin(), raw.end());
 		} else if (raw.size() <= write_cache.capacity()) {
@@ -241,6 +246,7 @@ namespace rediscpp
 	void client_type::request(const arguments_type & args)
 	{
 		if (args.size()) {
+			lprintf(__FILE__, __LINE__, info_level, "request %s", args[0].c_str());
 			response_start_multi_bulk(args.size());
 			for (auto it = args.begin(), end = args.end(); it != end; ++it) {
 				response_bulk(*it);
@@ -252,10 +258,16 @@ namespace rediscpp
 	void client_type::flush()
 	{
 		mutex_locker locker(write_mutex);
+		if (client->is_sendfile()) {
+			lprintf(__FILE__, __LINE__, info_level, "not flush on sendfile");
+			return;
+		}
 		if (!write_cache.empty()) {
 			client->send(&write_cache[0], write_cache.size());
 			write_cache.clear();
 		}
+		client->send();
+		client->mod();
 	}
 	bool client_type::parse_line(std::string & line)
 	{
@@ -300,6 +312,7 @@ namespace rediscpp
 				throw std::runtime_error("ERR syntax error");
 			}
 			auto & command = arguments.front();
+			lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
 			std::transform(command.begin(), command.end(), command.begin(), toupper);
 			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");
@@ -490,7 +503,6 @@ namespace rediscpp
 				server.propagete(info);
 			}
 			if (wrote) {
-				lprintf(__FILE__, __LINE__, info_level, "post to slave");
 				mutex_locker locker(server.slave_mutex);
 				if (!server.slaves.empty()) {
 					server.propagete(arguments);

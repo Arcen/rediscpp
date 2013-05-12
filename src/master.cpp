@@ -111,9 +111,11 @@ namespace rediscpp
 		while (true) {
 			switch (state) {
 			case waiting_pong_state:
+				lprintf(__FILE__, __LINE__, debug_level, "waiting pong");
 				if (client->should_recv()) {
 					std::string line;
 					if (parse_line(line)) {
+						lprintf(__FILE__, __LINE__, debug_level, "get ping response %s", line.c_str());
 						if (line == "+PONG") {
 							state = request_replconf_state;
 							continue;
@@ -130,6 +132,7 @@ namespace rediscpp
 				return;
 			case request_auth_state:
 				{
+					lprintf(__FILE__, __LINE__, debug_level, "send auth");
 					std::string auth = format("*2\r\n$4\r\nAUTH\r\n$%d\r\n", password.size()) + password + "\r\n";
 					if (!client->send(auth.c_str(), auth.size())) {
 						lprintf(__FILE__, __LINE__, error_level, "failed to send auth");
@@ -157,9 +160,11 @@ namespace rediscpp
 				return;
 			case request_replconf_state:
 				{
-					std::string sync("*2\r\n$8\r\nREPLCONF\r\n");
-					if (!client->send(sync.c_str(), sync.size())) {
-						lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
+					lprintf(__FILE__, __LINE__, debug_level, "send replconf");
+					std::string port = format("%d", server.listening_port);
+					std::string replconf = format("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$%zd\r\n%s\r\n", port.size(), port.c_str());
+					if (!client->send(replconf.c_str(), replconf.size())) {
+						lprintf(__FILE__, __LINE__, error_level, "failed to send replconf");
 						state = shutdown_state;
 						continue;
 					}
@@ -184,6 +189,7 @@ namespace rediscpp
 				return;
 			case request_sync_state:
 				{
+					lprintf(__FILE__, __LINE__, debug_level, "send sync");
 					std::string sync("*1\r\n$4\r\nSYNC\r\n");
 					if (!client->send(sync.c_str(), sync.size())) {
 						lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
@@ -238,6 +244,7 @@ namespace rediscpp
 						client->set_extra2(master_client.get());
 						master_client->set_master();//マスターとして取り扱う
 						server.append_client(master_client);
+						lprintf(__FILE__, __LINE__, debug_level, "now slave");
 						return;
 					}
 				} else {
