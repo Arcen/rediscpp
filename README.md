@@ -15,12 +15,12 @@ No License yet.
 ## Not support API
 * CONFIG GET, SET, RESETSTAT
     * No configuration feature yet
-* SLAVEOF, SYNC, MIGRATE, RESTORE
-    * No client feature yet
-* INFO, MONITOR, SLOWLOG, DUMP
+* MIGRATE, RESTORE, DUMP
+    * No another db feature yet
+* INFO, SLOWLOG
     * No system feature yet
 * DEBUG OBJECT, OBJECT
-    * No same structure
+    * No some structure
 * DEBUG SEGFAULT
     * No need
 * Scripting APIs
@@ -39,6 +39,6 @@ No License yet.
 * test code
 * config file
 * daemonize
-* master/slave
+* master/slave test
 * memory usage checking
 * drop key on low memory

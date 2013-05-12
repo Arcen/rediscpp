@@ -60,7 +60,7 @@ namespace rediscpp
 	{
 		auto host = client->get_argument(1);
 		auto port = client->get_argument(2);
-		lprintf(__FILE__, __LINE__, debug_level, "SLAVEOF %s %s", host.c_str(), port.c_str());
+		//lprintf(__FILE__, __LINE__, debug_level, "SLAVEOF %s %s", host.c_str(), port.c_str());
 		std::transform(host.begin(), host.end(), host.begin(), tolower);
 		std::transform(port.begin(), port.end(), port.begin(), tolower);
 		client->response_ok();
@@ -77,13 +77,20 @@ namespace rediscpp
 		for (size_t i = 0; i < databases.size(); ++i) {
 			lockers[i].reset(new database_read_locker(databases[i].get(), NULL));
 		}
-		if (!save("/tmp/redis.save.rdb")) {
+		char path[] = "/tmp/redis.save.rdb.XXXXXX";
+		int fd = mkstemp(path);
+		if (fd < 0) {
+			throw std::runtime_error("ERR could not create tmp file");
+		}
+		close(fd);
+		std::string path_ = path;
+		if (!save(path_)) {
 			throw std::runtime_error("ERR failed to sync");
 		}
 		mutex_locker locker(slave_mutex);
 		client->set_slave();
 		slaves.insert(client->get());
-		client->response_file("/tmp/redis.save.rdb");
+		client->response_file(path_);
 		return true;
 	}
 	///クライアント情報設定

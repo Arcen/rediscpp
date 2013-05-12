@@ -14,10 +14,17 @@ namespace rediscpp
 		, sync_file_size(0)
 	{
 	}
+	master_type::~master_type()
+	{
+		sync_file.reset();
+		if (!sync_file_path.empty()) {
+			::unlink(sync_file_path.c_str());
+			sync_file_path.clear();
+		}
+	}
 	void server_type::slaveof(const std::string & host, const std::string & port, bool now)
 	{
 		if (thread_pool.empty() || now) {
-			lprintf(__FILE__, __LINE__, debug_level, "slaveof now");
 			if (master) {
 				if (host == "no" && port == "one") {
 					lprintf(__FILE__, __LINE__, debug_level, "shutdown master now");
@@ -28,7 +35,6 @@ namespace rediscpp
 					lprintf(__FILE__, __LINE__, debug_level, "could not shutdown master now");
 				}
 			} else {
-				lprintf(__FILE__, __LINE__, debug_level, "connecting master now");
 				std::shared_ptr<address_type> address(new address_type());
 				if (!address->set_hostname(host)) {
 					lprintf(__FILE__, __LINE__, error_level, "failed to set master hostname : %s", host.c_str());
@@ -48,14 +54,12 @@ namespace rediscpp
 					lprintf(__FILE__, __LINE__, error_level, "failed to connect master");
 					return;
 				}
-				lprintf(__FILE__, __LINE__, debug_level, "send ping");
 				std::string ping("*1\r\n$4\r\nPING\r\n");
 				connection->send(ping.c_str(), ping.size());
 				master.reset(new master_type(*this, connection, password));
 				poll->append(connection);
 			}
 		} else {
-			lprintf(__FILE__, __LINE__, debug_level, "add job slaveof");
 			std::shared_ptr<job_type> job(new job_type(job_type::slaveof_type));
 			job->arg1 = host;
 			job->arg2 = port;
@@ -111,11 +115,9 @@ namespace rediscpp
 		while (true) {
 			switch (state) {
 			case waiting_pong_state:
-				lprintf(__FILE__, __LINE__, debug_level, "waiting pong");
 				if (client->should_recv()) {
 					std::string line;
 					if (parse_line(line)) {
-						lprintf(__FILE__, __LINE__, debug_level, "get ping response %s", line.c_str());
 						if (line == "+PONG") {
 							state = request_replconf_state;
 							continue;
@@ -132,7 +134,6 @@ namespace rediscpp
 				return;
 			case request_auth_state:
 				{
-					lprintf(__FILE__, __LINE__, debug_level, "send auth");
 					std::string auth = format("*2\r\n$4\r\nAUTH\r\n$%d\r\n", password.size()) + password + "\r\n";
 					if (!client->send(auth.c_str(), auth.size())) {
 						lprintf(__FILE__, __LINE__, error_level, "failed to send auth");
@@ -160,7 +161,6 @@ namespace rediscpp
 				return;
 			case request_replconf_state:
 				{
-					lprintf(__FILE__, __LINE__, debug_level, "send replconf");
 					std::string port = format("%d", server.listening_port);
 					std::string replconf = format("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$%zd\r\n%s\r\n", port.size(), port.c_str());
 					if (!client->send(replconf.c_str(), replconf.size())) {
@@ -189,7 +189,6 @@ namespace rediscpp
 				return;
 			case request_sync_state:
 				{
-					lprintf(__FILE__, __LINE__, debug_level, "send sync");
 					std::string sync("*1\r\n$4\r\nSYNC\r\n");
 					if (!client->send(sync.c_str(), sync.size())) {
 						lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
@@ -213,7 +212,16 @@ namespace rediscpp
 							state = shutdown_state;
 						} else {
 							//@todo テンポラリファイルにする必要がある
-							sync_file = file_type::create("/tmp/redis.sync.rdb");
+							char path[] = "/tmp/redis.sync.rdb.XXXXXX";
+							int fd = mkstemp(path);
+							if (fd < 0) {
+								lprintf(__FILE__, __LINE__, error_level, "failed to create tmp file");
+								state = shutdown_state;
+								continue;
+							}
+							close(fd);
+							sync_file_path = path;
+							sync_file = file_type::create(sync_file_path);
 						}
 						continue;
 					}
@@ -231,20 +239,19 @@ namespace rediscpp
 					if (sync_file_size == 0) {
 						sync_file.reset();
 						//load
-						if (!server.load("/tmp/redis.sync.rdb")) {
+						if (!server.load(sync_file_path)) {
 							lprintf(__FILE__, __LINE__, error_level, "failed to load sync file");
 							state = shutdown_state;
-							::unlink("/tmp/redis.sync.rdb");
 							continue;
 						}
-						::unlink("/tmp/redis.sync.rdb");
+						::unlink(sync_file_path.c_str());
+						sync_file_path.clear();
 						client->set_callback(server_type::client_callback);
 						std::shared_ptr<client_type> master_client(new client_type(server, client, ""));
 						master_client->set(master_client);
 						client->set_extra2(master_client.get());
 						master_client->set_master();//マスターとして取り扱う
 						server.append_client(master_client);
-						lprintf(__FILE__, __LINE__, debug_level, "now slave");
 						return;
 					}
 				} else {

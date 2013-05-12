@@ -246,7 +246,7 @@ namespace rediscpp
 	void client_type::request(const arguments_type & args)
 	{
 		if (args.size()) {
-			lprintf(__FILE__, __LINE__, info_level, "request %s", args[0].c_str());
+			//lprintf(__FILE__, __LINE__, info_level, "request %s", args[0].c_str());
 			response_start_multi_bulk(args.size());
 			for (auto it = args.begin(), end = args.end(); it != end; ++it) {
 				response_bulk(*it);
@@ -257,14 +257,12 @@ namespace rediscpp
 	}
 	void client_type::flush()
 	{
-		mutex_locker locker(write_mutex);
-		if (client->is_sendfile()) {
-			lprintf(__FILE__, __LINE__, info_level, "not flush on sendfile");
-			return;
-		}
-		if (!write_cache.empty()) {
-			client->send(&write_cache[0], write_cache.size());
-			write_cache.clear();
+		if (!client->is_sendfile()) {
+			mutex_locker locker(write_mutex);
+			if (!write_cache.empty()) {
+				client->send(&write_cache[0], write_cache.size());
+				write_cache.clear();
+			}
 		}
 		client->send();
 		client->mod();
@@ -312,7 +310,7 @@ namespace rediscpp
 				throw std::runtime_error("ERR syntax error");
 			}
 			auto & command = arguments.front();
-			lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
+			//lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
 			std::transform(command.begin(), command.end(), command.begin(), toupper);
 			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");

@@ -30,9 +30,11 @@ namespace rediscpp
 		};
 		status state;
 		size_t sync_file_size;
+		std::string sync_file_path;
 		std::shared_ptr<file_type> sync_file;
 	public:
 		master_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
+		~master_type();
 		void close_after_send() { client->close_after_send(); }
 		timeval_type get_time() const { return current_time; }
 		void process();
