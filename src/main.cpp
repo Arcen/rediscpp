@@ -5,6 +5,7 @@ int main(int argc, char *argv[])
 	int thread = 3;
 	std::string host = "127.0.0.1";
 	std::string port = "6379";
+	std::string config;
 	for (int i = 1; i < argc; ++i) {
 		if (*argv[i] == '-') {
 			switch (argv[i][1]) {
@@ -27,6 +28,8 @@ int main(int argc, char *argv[])
 				}
 				break;
 			}
+		} else {
+			config = argv[i];
 		}
 	}
 	rediscpp::server_type server;
