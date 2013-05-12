@@ -16,6 +16,7 @@ namespace rediscpp
 	server_type::server_type()
 		: shutdown(false)
 		, slave(false)
+		, slave_mutex(true)
 	{
 		signal(SIGPIPE, SIG_IGN);
 		databases.resize(1);
@@ -207,6 +208,13 @@ namespace rediscpp
 			case job_type::remove_master_type:
 				remove_master(true);
 				break;
+			case job_type::propagate_type:
+				if (job->arguments.empty()) {
+					propagete(job->arg1, true);
+				} else {
+					propagete(job->arguments, true);
+				}
+				break;
 			}
 		}
 		e->mod();
@@ -237,8 +245,11 @@ namespace rediscpp
 	void server_type::append_client(std::shared_ptr<client_type> client, bool now)
 	{
 		if (thread_pool.empty() || now) {
-			if (!client->is_master()) {
+			if (!client->is_master() && !client->is_monitor()) {
 				poll->append(client->client);
+			} else if (client->is_monitor()) {
+				monitors.insert(client);
+				monitoring = true;
 			} else {
 				client->client->mod();
 			}
@@ -258,6 +269,10 @@ namespace rediscpp
 			client->client->close();
 			if (client->is_master()) {
 				master.reset();
+			}
+			if (client->is_monitor()) {
+				monitors.erase(client);
+				monitoring = ! monitors.empty();
 			}
 			clients.erase(client->client.get());
 		} else {
@@ -316,6 +331,40 @@ namespace rediscpp
 			notify_list_pushed();
 		}
 	}
+	void server_type::propagete(const std::string & info, bool now)
+	{
+		if (thread_pool.empty() || now) {
+			timeval_type tv;
+			for (auto it = monitors.begin(), end = monitors.end(); it != end; ++it) {
+				auto & to = *it;
+				to->response_status(info);
+				to->flush();
+				to->client->mod();
+			}
+		} else {
+			std::shared_ptr<job_type> job(new job_type(job_type::propagate_type));
+			job->arg1 = info;
+			jobs.push(job);
+			event->send();
+		}
+	}
+	void server_type::propagete(const arguments_type & info, bool now)
+	{
+		if (thread_pool.empty() || now) {
+			lprintf(__FILE__, __LINE__, info_level, "post to slave now");
+			mutex_locker locker(slave_mutex);
+			for (auto it = slaves.begin(), end = slaves.end(); it != end; ++it) {
+				auto & to = *it;
+				to->request(info);
+				to->flush();
+			}
+		} else {
+			std::shared_ptr<job_type> job(new job_type(job_type::propagate_type));
+			job->arguments = info;
+			jobs.push(job);
+			event->send();
+		}
+	}
 	void server_type::notify_list_pushed()
 	{
 		std::shared_ptr<job_type> job(new job_type(job_type::list_pushed_type, std::shared_ptr<client_type>()));
@@ -335,8 +384,7 @@ namespace rediscpp
 		//CLIENT KILL, LIST, GETNAME, SETNAME
 		//CONFIG GET, SET, RESETSTAT
 		//DEBUG OBJECT, SETFAULT
-		//SLAVEOF, SYNC
-		//INFO, MONITOR, SLOWLOG, 
+		//INFO, SLOWLOG, 
 		api_map["DBSIZE"].set(&server_type::api_dbsize);
 		api_map["FLUSHALL"].set(&server_type::api_flushall).write();
 		api_map["FLUSHDB"].set(&server_type::api_flushdb).write();
@@ -345,6 +393,7 @@ namespace rediscpp
 		api_map["SLAVEOF"].set(&server_type::api_slaveof).argc(3).type("ccc");
 		api_map["SYNC"].set(&server_type::api_sync);
 		api_map["REPLCONF"].set(&server_type::api_replconf).argc_gte(3).type("ccc**");
+		api_map["MONITOR"].set(&server_type::api_monitor);
 		//transaction API
 		api_map["MULTI"].set(&server_type::api_multi);
 		api_map["EXEC"].set(&server_type::api_exec);
@@ -646,11 +695,6 @@ namespace rediscpp
 			return false;
 		}
 		try {
-			//全ロック
-			std::vector<std::shared_ptr<database_read_locker>> lockers(databases.size());
-			for (size_t i = 0; i < databases.size(); ++i) {
-				lockers[i].reset(new database_read_locker(databases[i].get(), NULL));
-			}
 			timeval_type current;
 			f->printf("REDIS%04d", version);
 			for (size_t i = 0, n = databases.size(); i < n; ++i ) {

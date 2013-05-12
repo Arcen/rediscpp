@@ -12,6 +12,7 @@ namespace rediscpp
 	class server_type;
 	class client_type;
 	class master_type;
+	typedef std::vector<std::string> arguments_type;
 	class blocked_exception : public std::exception
 	{
 		std::string what_;
@@ -96,11 +97,13 @@ namespace rediscpp
 			list_pushed_type,///<listに値が何か追加された場合
 			slaveof_type,
 			remove_master_type,
+			propagate_type,///<monitor, slave向けの情報
 		};
 		job_types type;
 		std::shared_ptr<client_type> client;
 		std::string arg1;
 		std::string arg2;
+		arguments_type arguments;
 		job_type(job_types type_, std::shared_ptr<client_type> client_)
 			: type(type_)
 			, client(client_)
@@ -130,7 +133,11 @@ namespace rediscpp
 		volatile bool shutdown;
 		std::vector<uint8_t> bits_table;
 		std::shared_ptr<master_type> master;
-		volatile bool slave;
+		volatile bool slave;///<slaveof後でサーバがslaveの状態
+		mutex_type slave_mutex;
+		std::set<std::shared_ptr<client_type>> slaves;
+		volatile bool monitoring;
+		std::set<std::shared_ptr<client_type>> monitors;
 
 		static void client_callback(pollable_type * p, int events);
 		static void server_callback(pollable_type * p, int events);
@@ -160,6 +167,8 @@ namespace rediscpp
 		void append_client(std::shared_ptr<client_type> client, bool now = false);
 		void remove_master(bool now = false);
 		void slaveof(const std::string & host, const std::string & port, bool now = false);
+		void propagete(const std::string & info, bool now = false);
+		void propagete(const arguments_type & info, bool now = false);
 		std::map<std::string,api_info> api_map;
 		void build_api_map();
 		void blocked(std::shared_ptr<client_type> client);
@@ -200,6 +209,7 @@ namespace rediscpp
 		bool api_slaveof(client_type * client);
 		bool api_sync(client_type * client);
 		bool api_replconf(client_type * client);
+		bool api_monitor(client_type * client);
 		//transactions api
 		bool api_multi(client_type * client);
 		bool api_exec(client_type * client);

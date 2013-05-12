@@ -453,6 +453,7 @@ namespace rediscpp
 					throw std::runtime_error("ERR not found STORE destination");
 				}
 				store = true;
+				client->wrote = true;
 			}
 		}
 		if (parsed != size) {

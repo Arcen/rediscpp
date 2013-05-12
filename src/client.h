@@ -34,6 +34,7 @@ namespace rediscpp
 		bool multi_executing;
 		std::list<arguments_type> transaction_arguments;
 		std::set<std::tuple<std::string,int,timeval_type>> watching;
+		mutex_type write_mutex;
 		std::vector<uint8_t> write_cache;
 		timeval_type current_time;
 		int events;//for thread
@@ -43,6 +44,8 @@ namespace rediscpp
 		uint16_t listening_port;
 		bool master;
 		bool slave;
+		bool monitor;
+		bool wrote;
 		std::shared_ptr<file_type> sending_file;
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
@@ -68,6 +71,7 @@ namespace rediscpp
 		void response_start_multi_bulk(size_t count);
 		void response_raw(const std::string & raw);
 		void response_file(const std::string & path);
+		void request(const arguments_type & args);
 		void flush();
 		void close_after_send() { client->close_after_send(); }
 		bool require_auth(const std::string & auth);
@@ -109,6 +113,8 @@ namespace rediscpp
 		bool is_master() const { return master; }
 		void set_slave() { slave = true; }
 		bool is_slave() const { return slave; }
+		void set_monitor() { monitor = true; }
+		bool is_monitor() const { return monitor; }
 	private:
 		void inline_command_parser(const std::string & line);
 		bool parse_line(std::string & line);

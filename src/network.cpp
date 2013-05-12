@@ -77,6 +77,16 @@ namespace rediscpp
 		}
 		return false;
 	}
+	uint16_t address_type::get_port() const
+	{
+		if (addr.in.sin_family == AF_INET) {
+			return ntohs(addr.in.sin_port);
+		}
+		if (addr.in6.sin6_family == AF_INET6) {
+			return ntohs(addr.in6.sin6_port);
+		}
+		return 0;
+	}
 	sa_family_t address_type::get_family() const
 	{
 		if (addr.un.sun_family == AF_UNIX) {
@@ -122,6 +132,23 @@ namespace rediscpp
 			return sizeof(addr.in6);
 		}
 		return 0;
+	}
+	std::string address_type::get_info() const
+	{
+		if (addr.un.sun_family == AF_UNIX) {
+			return std::string(addr.un.sun_path);
+		}
+		if (addr.in.sin_family == AF_INET || addr.in6.sin6_family == AF_INET6) {
+			char host[128];
+			char port[16];
+			int r = getnameinfo(get_sockaddr(), get_sockaddr_size(), host, sizeof(host), port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
+			if (r < 0) {
+				lprintf(__FILE__, __LINE__, error_level, "failed getnameinfo : %s", string_error(errno).c_str());
+				return std::string();
+			}
+			return format("%s:%s", host, port);
+		}
+		return std::string();
 	}
 	socket_type::socket_type(int fd_)
 		: pollable_type(fd_)

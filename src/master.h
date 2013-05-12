@@ -15,7 +15,6 @@ namespace rediscpp
 		server_type & server;
 		std::shared_ptr<socket_type> client;
 		std::string password;
-		std::vector<uint8_t> write_cache;
 		timeval_type current_time;
 		int events;//for thread
 		std::weak_ptr<master_type> self;

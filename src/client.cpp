@@ -26,6 +26,8 @@ namespace rediscpp
 		, listening_port(0)
 		, master(false)
 		, slave(false)
+		, monitor(false)
+		, wrote(false)
 	{
 		write_cache.reserve(1500);
 	}
@@ -89,7 +91,8 @@ namespace rediscpp
 					if (arg_count.empty()) {
 						continue;
 					}
-					if (*arg_count.begin() == '*') {
+					char type = *arg_count.begin();
+					if (type == '*') {
 						argument_count = atoi(arg_count.c_str() + 1);
 						argument_index = 0;
 						if (argument_count <= 0) {
@@ -99,6 +102,9 @@ namespace rediscpp
 						}
 						arguments.clear();
 						arguments.resize(argument_count);
+					} else if (type == '+' || type == '-') {//response from slave
+						lprintf(__FILE__, __LINE__, debug_level, "recv response from slave ? %s", arg_count.c_str());
+						continue;
 					} else {
 						inline_command_parser(arg_count);
 						argument_index = argument_count = arg_count.size();
@@ -221,6 +227,7 @@ namespace rediscpp
 	}
 	void client_type::response_raw(const std::string & raw)
 	{
+		mutex_locker locker(write_mutex);
 		if (raw.size() <= write_cache.capacity() - write_cache.size()) {
 			write_cache.insert(write_cache.end(), raw.begin(), raw.end());
 		} else if (raw.size() <= write_cache.capacity()) {
@@ -231,8 +238,20 @@ namespace rediscpp
 			client->send(raw.c_str(), raw.size());
 		}
 	}
+	void client_type::request(const arguments_type & args)
+	{
+		if (args.size()) {
+			response_start_multi_bulk(args.size());
+			for (auto it = args.begin(), end = args.end(); it != end; ++it) {
+				response_bulk(*it);
+			}
+		} else {
+			response_null_multi_bulk();
+		}
+	}
 	void client_type::flush()
 	{
+		mutex_locker locker(write_mutex);
 		if (!write_cache.empty()) {
 			client->send(&write_cache[0], write_cache.size());
 			write_cache.clear();
@@ -274,6 +293,9 @@ namespace rediscpp
 	{
 		try
 		{
+			if (is_monitor()) {
+				throw std::runtime_error("ERR monitor not accept command");
+			}
 			if (arguments.empty()) {
 				throw std::runtime_error("ERR syntax error");
 			}
@@ -458,7 +480,22 @@ namespace rediscpp
 			if (!back_fields.empty()) fields.insert(fields.end(), back_fields.begin(), back_fields.end());
 			if (!back_members.empty()) members.insert(members.end(), back_members.begin(), back_members.end());
 			if (!back_scores.empty()) scores.insert(scores.end(), back_scores.begin(), back_scores.end());
+			wrote = info.writing;
 			bool result = (server.*(info.function))(this);
+			if (server.monitoring) {
+				std::string info = format("%d.%06d [%d %s]", current_time.tv_sec, current_time.tv_usec, db_index, client->get_peer_info().c_str());
+				for (auto it = arguments.begin(), begin = it, end = arguments.end(); it != end; ++it) {
+					info += format(" \"%s\"", it->c_str());
+				}
+				server.propagete(info);
+			}
+			if (wrote) {
+				lprintf(__FILE__, __LINE__, info_level, "post to slave");
+				mutex_locker locker(server.slave_mutex);
+				if (!server.slaves.empty()) {
+					server.propagete(arguments);
+				}
+			}
 			keys.clear();
 			values.clear();
 			fields.clear();

@@ -72,19 +72,24 @@ namespace rediscpp
 	///@note Available since 1.0.0
 	bool server_type::api_sync(client_type * client)
 	{
+		//全ロック
+		std::vector<std::shared_ptr<database_read_locker>> lockers(databases.size());
+		for (size_t i = 0; i < databases.size(); ++i) {
+			lockers[i].reset(new database_read_locker(databases[i].get(), NULL));
+		}
 		if (!save("/tmp/redis.save.rdb")) {
 			throw std::runtime_error("ERR failed to sync");
 		}
-		client->response_file("/tmp/redis.save.rdb");
+		mutex_locker locker(slave_mutex);
 		client->set_slave();
-		//@todo slaveとして、サーバに登録して、変更のあるコマンドをすべて転送する。但し、ファイルを送り終えるまでは、clientの送信バッファは使えない
+		slaves.insert(client->get());
+		client->response_file("/tmp/redis.save.rdb");
 		return true;
 	}
 	///クライアント情報設定
 	///@note Available since 1.0.0
 	bool server_type::api_replconf(client_type * client)
 	{
-		lputs(__FILE__, __LINE__, debug_level, "REPLCONF");
 		auto & arguments = client->get_arguments();
 		for (size_t i = 1, n = arguments.size(); i + 1 < n; i += 2) {
 			auto field = arguments[i];
@@ -101,4 +106,14 @@ namespace rediscpp
 		client->response_ok();
 		return true;
 	}
+	///モニター設定
+	///@note Available since 1.0.0
+	bool server_type::api_monitor(client_type * client)
+	{
+		client->response_ok();
+		client->set_monitor();
+		append_client(client->get());
+		return true;
+	}
+	
 }

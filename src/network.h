@@ -32,11 +32,13 @@ namespace rediscpp
 		address_type();
 		bool set_hostname(const std::string & hostname);
 		bool set_port(uint16_t port);
+		uint16_t get_port() const;
 		sa_family_t get_family() const;
 		void set_family(sa_family_t family);
 		sockaddr * get_sockaddr();
 		const sockaddr * get_sockaddr() const;
 		size_t get_sockaddr_size() const;
+		std::string get_info() const;
 	};
 
 	class poll_type;
@@ -154,6 +156,7 @@ namespace rediscpp
 			return EPOLLIN | EPOLLET | EPOLLONESHOT | (should_send() ? EPOLLOUT : 0);
 		}
 		bool done() const { return recv_done() && ! should_recv() && ! should_send(); }
+		std::string get_peer_info() { return peer ? peer->get_info() : std::string(); }
 	};
 	class event_type : public pollable_type
 	{
