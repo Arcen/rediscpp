@@ -8,7 +8,6 @@
 
 namespace rediscpp
 {
-	
 	///キーをすべて列挙する
 	///@note Available since 1.0.0.
 	bool server_type::api_keys(client_type * client)
@@ -665,6 +664,54 @@ namespace rediscpp
 				}
 			}
 		}
+		return true;
+	}
+	///データをダンプ
+	///@note Available since 2.6.0.
+	bool server_type::api_dump(client_type * client)
+	{
+		auto db = readable_db(client);
+		auto & key = *client->get_keys()[0];
+		auto current = client->get_time();
+		auto value = db->get(key, current);
+		if (!value) {
+			client->response_null();
+			return true;
+		}
+		std::string dst;
+		const int value_type = value->get_int_type();
+		dst.push_back(value_type);
+		dump(dst, value);
+		dump_suffix(dst);
+		client->response_bulk(dst);
+		return true;
+	}
+	///データをリストア
+	///@note Available since 2.6.0.
+	bool server_type::api_restore(client_type * client)
+	{
+		auto & key = *client->get_keys()[0];
+		auto & src = *client->get_values()[0];
+		auto time = client->get_argument(2);
+		bool is_valid;
+		int64_t timeval = atoi64(time, is_valid);
+		if (!is_valid || timeval < 0) {
+			throw std::runtime_error("ERR invalid ttl");
+		}
+		auto current = client->get_time();
+		std::shared_ptr<type_interface> value = restore(src, current);
+		timeval_type tv(0,0);
+		if (0 < timeval) {
+			tv = current;
+			tv.add_msec(timeval);
+			value->expire(tv);
+		}
+		auto db = writable_db(client);
+		db->insert(key, value, current);
+		if (0 < timeval) {
+			db->regist_expiring_key(tv, key);
+		}
+		client->response_ok();
 		return true;
 	}
 }

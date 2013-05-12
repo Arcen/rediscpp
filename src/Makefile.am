@@ -9,6 +9,7 @@ rediscpp_SOURCES = \
     log.cpp \
     timeval.cpp \
     crc64.cpp \
+    serialize.cpp \
     common.cpp \
     api_connection.cpp \
     api_server.cpp \

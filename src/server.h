@@ -190,6 +190,9 @@ namespace rediscpp
 		}
 		int64_t incrby(const std::string & value, int64_t count);
 		std::string incrbyfloat(const std::string & value, const std::string & count);
+		static void dump(std::string & dst, const std::shared_ptr<type_interface> & value);
+		static void dump_suffix(std::string & dst);
+		static std::shared_ptr<type_interface> restore(const std::string & src, const timeval_type & current);
 
 		//connection api
 		bool api_auth(client_type * client);
@@ -233,6 +236,8 @@ namespace rediscpp
 		bool api_type(client_type * client);
 		bool api_sort(client_type * client);
 		bool api_sort_store(client_type * client);
+		bool api_dump(client_type * client);
+		bool api_restore(client_type * client);
 		//strings api
 		bool api_get(client_type * client);
 		bool api_set_internal(client_type * client, bool nx, bool xx, int64_t expire);

@@ -15,8 +15,8 @@ No License yet.
 ## Not support API
 * CONFIG GET, SET, RESETSTAT
     * No configuration feature yet
-* MIGRATE, RESTORE, DUMP
-    * No another db feature yet
+* MIGRATE
+    * No another server feature yet
 * INFO, SLOWLOG
     * No system feature yet
 * DEBUG OBJECT, OBJECT
@@ -33,6 +33,7 @@ No License yet.
     * No support persistence
 
 # TODO
+* some api should to use members, fields, scores to api check
 * not implemented api
 * optimize using rvalue
 * file refactoring
