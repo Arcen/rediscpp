@@ -1,7 +1,9 @@
 #include "server.h"
+#include "crc64.h"
 
 int main(int argc, char *argv[])
 {
+	rediscpp::crc64::initialize();
 	int thread = 3;
 	std::string host = "127.0.0.1";
 	std::string port = "6379";

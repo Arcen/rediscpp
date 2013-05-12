@@ -13,7 +13,6 @@ namespace rediscpp
 	class file_type
 	{
 		int fd;
-		crc64_type crc64;
 		uint64_t crc;
 		bool checking_crc;
 		std::string path;
@@ -90,7 +89,7 @@ namespace rediscpp
 		{
 			if (len) {
 				if (checking_crc) {
-					crc = crc64.update(crc, ptr, len);
+					crc = crc64::update(crc, ptr, len);
 				}
 				ssize_t r = ::write(fd, ptr, len);
 				if (r != len) {
@@ -117,7 +116,7 @@ namespace rediscpp
 					throw std::runtime_error("file io error");
 				}
 				if (checking_crc) {
-					crc = crc64.update(crc, ptr, len);
+					crc = crc64::update(crc, ptr, len);
 				}
 			}
 		}

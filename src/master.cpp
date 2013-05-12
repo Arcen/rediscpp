@@ -73,9 +73,9 @@ namespace rediscpp
 			return;
 		}
 		if (events & EPOLLIN) {//recv
-			//lputs(__FILE__, __LINE__, info_level, "client EPOLLIN");
 			client->recv();
-		} else if (events & EPOLLOUT) {//send
+		}
+		if (events & EPOLLOUT) {//send
 			client->send();
 		}
 		while (true) {
@@ -213,6 +213,7 @@ namespace rediscpp
 						::unlink(sync_file_path.c_str());
 						sync_file_path.clear();
 						state = writer_state;
+						lprintf(__FILE__, __LINE__, debug_level, "now waiting master request");
 						continue;
 					}
 				} else {

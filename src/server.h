@@ -143,12 +143,10 @@ namespace rediscpp
 		static void server_callback(pollable_type * p, int events);
 		static void event_callback(pollable_type * p, int events);
 		static void timer_callback(pollable_type * p, int events);
-		static void master_callback(pollable_type * p, int events);
 		void on_server(socket_type * s, int events);
 		void on_client(socket_type * s, int events);
 		void on_event(event_type * e, int events);
 		void on_timer(timer_type * e, int events);
-		void on_master(socket_type * s, int events);
 	public:
 		server_type();
 		~server_type();

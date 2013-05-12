@@ -6,12 +6,9 @@
 
 namespace rediscpp
 {
-	class crc64_type
+	namespace crc64
 	{
-		static uint64_t table[256];
-		static bool initialized;
-	public:
-		crc64_type();
+		void initialize();
 		uint64_t update(uint64_t crc, const void * buf, size_t len);
 	};
 };

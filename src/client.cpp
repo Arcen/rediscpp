@@ -55,13 +55,15 @@ namespace rediscpp
 				client->send();
 			}
 		} else if (events & EPOLLOUT) {//send
+			//lputs(__FILE__, __LINE__, info_level, "client EPOLLOUT");
 			client->send();
-			if (is_slave()) {
-				if (!client->is_sendfile() && sending_file) {
-					sending_file.reset();
-					flush();
-					client->send();
-				}
+		}
+		if (is_slave()) {
+			if (!client->is_sendfile() && sending_file) {
+				lputs(__FILE__, __LINE__, info_level, "slave file done");
+				sending_file.reset();
+				flush();
+				client->send();
 			}
 		}
 	}
@@ -245,7 +247,7 @@ namespace rediscpp
 	void client_type::request(const arguments_type & args)
 	{
 		if (args.size()) {
-			//lprintf(__FILE__, __LINE__, info_level, "request %s", args[0].c_str());
+			lprintf(__FILE__, __LINE__, info_level, "request %s", args[0].c_str());
 			response_start_multi_bulk(args.size());
 			for (auto it = args.begin(), end = args.end(); it != end; ++it) {
 				response_bulk(*it);
@@ -264,7 +266,6 @@ namespace rediscpp
 			}
 		}
 		client->send();
-		client->mod();
 	}
 	bool client_type::parse_line(std::string & line)
 	{
@@ -309,7 +310,7 @@ namespace rediscpp
 				throw std::runtime_error("ERR syntax error");
 			}
 			auto & command = arguments.front();
-			//lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
+			lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
 			std::transform(command.begin(), command.end(), command.begin(), toupper);
 			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");

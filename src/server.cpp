@@ -242,6 +242,9 @@ namespace rediscpp
 				monitors.insert(client);
 				monitoring = true;
 			} else if (client->is_master()) {
+				if (master) {
+					master->client->shutdown(true, true);
+				}
 				master = std::dynamic_pointer_cast<master_type>(client);
 				poll->append(client->client);
 			} else {
@@ -262,7 +265,10 @@ namespace rediscpp
 			}
 			client->client->close();
 			if (client->is_master()) {
-				master.reset();
+				if (client.get() == master.get()) {
+					master.reset();
+				}
+				slave = false;
 			}
 			if (client->is_monitor()) {
 				monitors.erase(client);
@@ -793,7 +799,8 @@ namespace rediscpp
 			for (size_t i = 0; i < databases.size(); ++i) {
 				lockers[i].reset(new database_write_locker(databases[i].get(), NULL, false));
 			}
-			slave = (this->master ? true : false);
+			//@todo ファイルから読むのがslaveof以外でおきるなら、ここは修正が必要
+			slave = true;
 			for (int i = 0, n = databases.size(); i < n; ++i) {
 				auto & db = *(lockers[i]);
 				db->clear();
