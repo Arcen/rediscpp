@@ -11,6 +11,7 @@ namespace rediscpp
 {
 	class server_type;
 	class client_type;
+	class master_type;
 	class blocked_exception : public std::exception
 	{
 		std::string what_;
@@ -93,18 +94,27 @@ namespace rediscpp
 			add_type,
 			del_type,
 			list_pushed_type,///<listに値が何か追加された場合
+			slaveof_type,
+			remove_master_type,
 		};
 		job_types type;
 		std::shared_ptr<client_type> client;
+		std::string arg1;
+		std::string arg2;
 		job_type(job_types type_, std::shared_ptr<client_type> client_)
 			: type(type_)
 			, client(client_)
+		{
+		}
+		job_type(job_types type_)
+			: type(type_)
 		{
 		}
 	};
 	class server_type
 	{
 		friend class client_type;
+		friend class master_type;
 		std::shared_ptr<poll_type> poll;
 		std::shared_ptr<event_type> event;
 		std::shared_ptr<timer_type> timer;
@@ -117,16 +127,21 @@ namespace rediscpp
 		std::vector<std::shared_ptr<database_type>> databases;
 		std::vector<std::shared_ptr<worker_type>> thread_pool;
 		sync_queue<std::shared_ptr<job_type>> jobs;
-		bool shutdown;
+		volatile bool shutdown;
 		std::vector<uint8_t> bits_table;
+		std::shared_ptr<master_type> master;
+		volatile bool slave;
+
 		static void client_callback(pollable_type * p, int events);
 		static void server_callback(pollable_type * p, int events);
 		static void event_callback(pollable_type * p, int events);
 		static void timer_callback(pollable_type * p, int events);
+		static void master_callback(pollable_type * p, int events);
 		void on_server(socket_type * s, int events);
 		void on_client(socket_type * s, int events);
 		void on_event(event_type * e, int events);
 		void on_timer(timer_type * e, int events);
+		void on_master(int events);
 	public:
 		server_type();
 		~server_type();
@@ -138,9 +153,13 @@ namespace rediscpp
 		database_read_locker readable_db(int index, client_type * client);
 		database_write_locker writable_db(client_type * client, bool rdlock = false);
 		database_read_locker readable_db(client_type * client);
+		bool save(const std::string & path);
+		bool load(const std::string & path);
 	private:
 		void remove_client(std::shared_ptr<client_type> client, bool now = false);
 		void append_client(std::shared_ptr<client_type> client, bool now = false);
+		void remove_master(bool now = false);
+		void slaveof(const std::string & host, const std::string & port, bool now = false);
 		std::map<std::string,api_info> api_map;
 		void build_api_map();
 		void blocked(std::shared_ptr<client_type> client);
@@ -165,8 +184,6 @@ namespace rediscpp
 		}
 		int64_t incrby(const std::string & value, int64_t count);
 		std::string incrbyfloat(const std::string & value, const std::string & count);
-		bool save(const std::string & path);
-		bool load(const std::string & path);
 
 		//connection api
 		bool api_auth(client_type * client);
@@ -180,6 +197,9 @@ namespace rediscpp
 		bool api_flushdb(client_type * client);
 		bool api_shutdown(client_type * client);
 		bool api_time(client_type * client);
+		bool api_slaveof(client_type * client);
+		bool api_sync(client_type * client);
+		bool api_replconf(client_type * client);
 		//transactions api
 		bool api_multi(client_type * client);
 		bool api_exec(client_type * client);

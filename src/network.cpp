@@ -3,6 +3,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/sendfile.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <algorithm>
@@ -128,6 +129,9 @@ namespace rediscpp
 		, finished_to_write(false)
 		, shutdowning(-1)
 		, broken(false)
+		, sending_file_id(-1)
+		, sending_file_size(0)
+		, sent_file_size(0)
 	{
 	}
 	socket_type::~socket_type()
@@ -300,6 +304,10 @@ namespace rediscpp
 		if (len == 0) {
 			return true;
 		}
+		if (is_sendfile()) {
+			lprintf(__FILE__, __LINE__, error_level, "failed to send on sending file");
+			return false;
+		}
 		send_buffers.push_back(std::make_pair<std::vector<uint8_t>, size_t>(std::vector<uint8_t>(), 0));
 		std::vector<uint8_t> & last = send_buffers.back().first;
 		last.assign(reinterpret_cast<const uint8_t*>(buf), reinterpret_cast<const uint8_t*>(buf) + len);
@@ -378,8 +386,31 @@ namespace rediscpp
 					send_buffers.pop_front();
 				}
 			}
+		} else if (is_sendfile()) {
+			ssize_t r;
+			int interupt_count = 0;
+			size_t count = sending_file_size - sent_file_size;
+			while (true) {
+				r = ::sendfile(fd, sending_file_id, NULL, count);
+				if (r < 0 && errno == EINTR) {
+					if (interupt_count < 3) {
+						++interupt_count;
+						continue;
+					}
+				}
+				break;
+			}
+			if (r < 0) {
+				if (errno == EAGAIN) {
+					return false;
+				}
+				broken = true;
+				lprintf(__FILE__, __LINE__, error_level, "failed: sendfile(%d):%s", fd, string_error(errno).c_str());
+				return false;
+			}
+			sent_file_size += r;
 		}
-		if (send_buffers.empty()) {
+		if (send_buffers.empty() && !is_sendfile()) {
 			if (finished_to_write) {
 				shutdown(false, true);
 				return true;

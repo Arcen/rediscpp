@@ -98,6 +98,7 @@
     <ClCompile Include="src\database.cpp" />
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\master.cpp" />
     <ClCompile Include="src\network.cpp" />
     <ClCompile Include="src\server.cpp" />
     <ClCompile Include="src\timeval.cpp" />
@@ -115,6 +116,7 @@
     <ClInclude Include="src\database.h" />
     <ClInclude Include="src\file.h" />
     <ClInclude Include="src\log.h" />
+    <ClInclude Include="src\master.h" />
     <ClInclude Include="src\network.h" />
     <ClInclude Include="src\server.h" />
     <ClInclude Include="src\thread.h" />

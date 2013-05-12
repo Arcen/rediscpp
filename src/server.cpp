@@ -1,5 +1,6 @@
 #include "server.h"
 #include "client.h"
+#include "master.h"
 #include "log.h"
 #include "file.h"
 #include "type_string.h"
@@ -14,6 +15,7 @@ namespace rediscpp
 {
 	server_type::server_type()
 		: shutdown(false)
+		, slave(false)
 	{
 		signal(SIGPIPE, SIG_IGN);
 		databases.resize(1);
@@ -36,7 +38,8 @@ namespace rediscpp
 	{
 		std::shared_ptr<address_type> addr(new address_type);
 		addr->set_hostname(hostname.c_str());
-		addr->set_port(atoi(port.c_str()));
+		bool is_valid;
+		addr->set_port(atou16(port, is_valid));
 		listening = socket_type::create(*addr);
 		listening->set_reuse();
 		if (!listening->bind(addr)) {
@@ -142,6 +145,18 @@ namespace rediscpp
 		}
 		server->on_timer(t, events);
 	}
+	void server_type::master_callback(pollable_type * p, int events)
+	{
+		socket_type * s = dynamic_cast<socket_type *>(p);
+		if (!s) {
+			return;
+		}
+		server_type * server = reinterpret_cast<server_type *>(s->get_extra());
+		if (!server) {
+			return;
+		}
+		server->on_master(events);
+	}
 	void server_type::on_server(socket_type * s, int events)
 	{
 		std::shared_ptr<socket_type> cs = s->accept();
@@ -186,6 +201,12 @@ namespace rediscpp
 			case job_type::list_pushed_type:
 				excecute_blocked_client(true);
 				break;
+			case job_type::slaveof_type:
+				slaveof(job->arg1, job->arg2, true);
+				break;
+			case job_type::remove_master_type:
+				remove_master(true);
+				break;
 			}
 		}
 		e->mod();
@@ -216,7 +237,11 @@ namespace rediscpp
 	void server_type::append_client(std::shared_ptr<client_type> client, bool now)
 	{
 		if (thread_pool.empty() || now) {
-			poll->append(client->client);
+			if (!client->is_master()) {
+				poll->append(client->client);
+			} else {
+				client->client->mod();
+			}
 			clients[client->client.get()] = client;
 		} else {
 			std::shared_ptr<job_type> job(new job_type(job_type::add_type, client));
@@ -234,6 +259,19 @@ namespace rediscpp
 			clients.erase(client->client.get());
 		} else {
 			std::shared_ptr<job_type> job(new job_type(job_type::del_type, client));
+			jobs.push(job);
+			event->send();
+		}
+	}
+	void server_type::remove_master(bool now)
+	{
+		if (thread_pool.empty() || now) {
+			if (master) {
+				master->client->close();
+			}
+			master.reset();
+		} else {
+			std::shared_ptr<job_type> job(new job_type(job_type::remove_master_type));
 			jobs.push(job);
 			event->send();
 		}
@@ -301,6 +339,9 @@ namespace rediscpp
 		api_map["FLUSHDB"].set(&server_type::api_flushdb).write();
 		api_map["SHUTDOWN"].set(&server_type::api_shutdown).argc(1,2).type("cs");
 		api_map["TIME"].set(&server_type::api_time);
+		api_map["SLAVEOF"].set(&server_type::api_slaveof).argc(3).type("ccc");
+		api_map["SYNC"].set(&server_type::api_sync);
+		api_map["REPLCONF"].set(&server_type::api_replconf).argc_gte(3).type("ccc**");
 		//transaction API
 		api_map["MULTI"].set(&server_type::api_multi);
 		api_map["EXEC"].set(&server_type::api_exec);
@@ -469,6 +510,13 @@ namespace rediscpp
 	}
 	database_write_locker server_type::writable_db(int index, client_type * client, bool rdlock)
 	{
+		if (slave && !rdlock) {
+			if (client) {
+				if (!client->is_master()) {
+					throw std::runtime_error("ERR could not change on slave mode");
+				}
+			}
+		}
 		return database_write_locker(databases.at(index).get(), client, rdlock);
 	}
 	database_read_locker server_type::readable_db(int index, client_type * client)
@@ -590,7 +638,7 @@ namespace rediscpp
 
 	bool server_type::save(const std::string & path)
 	{
-		std::shared_ptr<file_type> f = file_type::create(path);
+		std::shared_ptr<file_type> f = file_type::create(path, true);
 		if (!f) {
 			return false;
 		}
@@ -692,7 +740,7 @@ namespace rediscpp
 	}
 	bool server_type::load(const std::string & path)
 	{
-		std::shared_ptr<file_type> f = file_type::open(path);
+		std::shared_ptr<file_type> f = file_type::open(path, true);
 		if (!f) {
 			return false;
 		}
@@ -701,10 +749,12 @@ namespace rediscpp
 			char buf[128] = {0};
 			f->read(buf, 9);
 			if (memcmp(buf, "REDIS", 5)) {
+				lprintf(__FILE__, __LINE__, info_level, "Not found REDIS header");
 				throw std::runtime_error("Not found REDIS header");
 			}
 			int ver = atoi(buf + 5);
 			if (ver < 0 || version < ver) {
+				lprintf(__FILE__, __LINE__, info_level, "Not found REDIS version %d", ver);
 				throw std::runtime_error("Not compatible REDIS version");
 			}
 			//全ロック
@@ -712,8 +762,9 @@ namespace rediscpp
 			for (size_t i = 0; i < databases.size(); ++i) {
 				lockers[i].reset(new database_write_locker(databases[i].get(), NULL, false));
 			}
+			slave = (this->master ? true : false);
 			for (int i = 0, n = databases.size(); i < n; ++i) {
-				auto db = writable_db(i, NULL);
+				auto & db = *(lockers[i]);
 				db->clear();
 			}
 			uint8_t op = 0;
@@ -725,12 +776,14 @@ namespace rediscpp
 				switch (op) {
 				case op_eof:
 					if (!f->check_crc()) {
+						lprintf(__FILE__, __LINE__, info_level, "corrupted crc");
 						throw std::runtime_error("corrupted crc");
 					}
 					continue;
 				case op_selectdb:
 					db_index = read_len(f);
 					if (databases.size() <= db_index) {
+						lprintf(__FILE__, __LINE__, info_level, "db index out of range");
 						throw std::runtime_error("db index out of range");
 					}
 					db = databases[db_index];
@@ -809,7 +862,7 @@ namespace rediscpp
 					break;
 				}
 			}
-		} catch (std::exception e) {
+		} catch (const std::exception & e) {
 			lprintf(__FILE__, __LINE__, info_level, "exception:%s", e.what());
 			return false;
 		} catch (...) {

@@ -4,6 +4,7 @@ rediscpp_SOURCES = \
     network.cpp \
     server.cpp \
     client.cpp \
+    master.cpp \
     database.cpp \
     log.cpp \
     timeval.cpp \

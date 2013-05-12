@@ -10,6 +10,7 @@ namespace rediscpp
 	typedef std::vector<std::string> arguments_type;
 	class server_type;
 	struct api_info;
+	class file_type;
 	class client_type
 	{
 		friend class server_type;
@@ -39,6 +40,10 @@ namespace rediscpp
 		bool blocked;//for list
 		timeval_type blocked_till;
 		std::weak_ptr<client_type> self;
+		uint16_t listening_port;
+		bool master;
+		bool slave;
+		std::shared_ptr<file_type> sending_file;
 	public:
 		client_type(server_type & server_, std::shared_ptr<socket_type> & client_, const std::string & password_);
 		bool parse();
@@ -62,6 +67,7 @@ namespace rediscpp
 		void response_null_multi_bulk();
 		void response_start_multi_bulk(size_t count);
 		void response_raw(const std::string & raw);
+		void response_file(const std::string & path);
 		void flush();
 		void close_after_send() { client->close_after_send(); }
 		bool require_auth(const std::string & auth);
@@ -99,6 +105,10 @@ namespace rediscpp
 		{
 			return blocked && (blocked_till.is_epoc() || current_time < blocked_till);
 		}
+		void set_master() { master = true; }
+		bool is_master() const { return master; }
+		void set_slave() { slave = true; }
+		bool is_slave() const { return slave; }
 	private:
 		void inline_command_parser(const std::string & line);
 		bool parse_line(std::string & line);

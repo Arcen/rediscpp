@@ -16,6 +16,9 @@
     <Filter Include="src\util">
       <UniqueIdentifier>{057513ac-2db9-44ca-97eb-619a54ae270a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\modules">
+      <UniqueIdentifier>{c3cd25ff-cbda-4d40-b421-255fd9a235b3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="doc\commands.txt">
@@ -35,18 +38,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\server.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\database.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\client.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\type_hash.cpp">
       <Filter>src\type</Filter>
     </ClCompile>
@@ -107,17 +98,23 @@
     <ClCompile Include="src\crc64.cpp">
       <Filter>src\util</Filter>
     </ClCompile>
+    <ClCompile Include="src\client.cpp">
+      <Filter>src\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\database.cpp">
+      <Filter>src\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\server.cpp">
+      <Filter>src\modules</Filter>
+    </ClCompile>
+    <ClCompile Include="src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\master.cpp">
+      <Filter>src\modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\server.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\database.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\client.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="src\type_zset.h">
       <Filter>src\type</Filter>
     </ClInclude>
@@ -156,6 +153,18 @@
     </ClInclude>
     <ClInclude Include="src\crc64.h">
       <Filter>src\util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\client.h">
+      <Filter>src\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="src\database.h">
+      <Filter>src\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="src\master.h">
+      <Filter>src\modules</Filter>
+    </ClInclude>
+    <ClInclude Include="src\server.h">
+      <Filter>src\modules</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

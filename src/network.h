@@ -124,12 +124,22 @@ namespace rediscpp
 	private:
 		std::deque<uint8_t> recv_buffer;
 		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
+		int sending_file_id;
+		size_t sending_file_size;
+		size_t sent_file_size;
 	public:
-		bool should_send() const { return ! send_buffers.empty() && ! is_write_shutdowned(); }
+		bool should_send() const { return (! send_buffers.empty() || is_sendfile()) && ! is_write_shutdowned(); }
 		bool should_recv() const { return ! recv_buffer.empty() && ! is_read_shutdowned(); }
 		bool send();
 		bool recv();
 		bool send(const void * buf, size_t len);
+		void sendfile(int in_fd, size_t size)
+		{
+			sending_file_id = in_fd;
+			sending_file_size = size;
+			sent_file_size = 0;
+		}
+		bool is_sendfile() const { return sent_file_size < sending_file_size; }
 		std::deque<uint8_t> & get_recv() { return recv_buffer; }
 		bool recv_done() const { return finished_to_read; }
 		std::shared_ptr<socket_type> get() { return std::dynamic_pointer_cast<socket_type>(self.lock()); }

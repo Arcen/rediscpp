@@ -29,11 +29,11 @@ namespace rediscpp
 	///@note Available since 1.0.0.
 	bool server_type::api_auth(client_type * client)
 	{
-		if (!client->require_auth(std::string())) {
-			throw std::runtime_error("ERR not required");
-		}
-		if (!client->auth(client->get_argument(1))) {
-			throw std::runtime_error("ERR not match");
+		lputs(__FILE__, __LINE__, debug_level, "AUTH");
+		if (client->require_auth(std::string())) {
+			if (!client->auth(client->get_argument(1))) {
+				throw std::runtime_error("ERR not match");
+			}
 		}
 		client->response_ok();
 		return true;

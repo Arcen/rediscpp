@@ -5,7 +5,7 @@
 #include "type_string.h"
 #include "type_zset.h"
 #include "server.h"
-#include "log.h"
+#include "file.h"
 
 namespace rediscpp
 {
@@ -23,6 +23,9 @@ namespace rediscpp
 		, current_time(0, 0)
 		, blocked(false)
 		, blocked_till(0, 0)
+		, listening_port(0)
+		, master(false)
+		, slave(false)
 	{
 		write_cache.reserve(1500);
 	}
@@ -52,6 +55,11 @@ namespace rediscpp
 			}
 		} else if (events & EPOLLOUT) {//send
 			client->send();
+			if (is_slave()) {
+				if (!client->is_sendfile() && sending_file) {
+					sending_file.reset();
+				}
+			}
 		}
 	}
 	void client_type::inline_command_parser(const std::string & line)
@@ -416,13 +424,11 @@ namespace rediscpp
 					case 'k':
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
 							keys.push_back(&arguments[pos]);
-							//lprintf(__FILE__, __LINE__, info_level, "set key %s", arguments[pos].c_str());
 						}
 						break;
 					case 'v':
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
 							values.push_back(&arguments[pos]);
-							//lprintf(__FILE__, __LINE__, info_level, "set value %s", arguments[pos].c_str());
 						}
 						break;
 					case 'f':
@@ -439,6 +445,8 @@ namespace rediscpp
 						for (size_t pos = arg_pos + s; pos < argc; pos += star_count) {
 							scores.push_back(&arguments[pos]);
 						}
+						break;
+					case 'c':
 						break;
 					default:
 						throw std::runtime_error("ERR command pattern error");
@@ -465,6 +473,15 @@ namespace rediscpp
 			scores.clear();
 			throw;
 		}
+	}
+	void client_type::response_file(const std::string & path)
+	{
+		flush();
+		sending_file = file_type::open(path, false, true);
+		size_t size = sending_file->size();
+		std::string header = format("$%zd\r\n", size);
+		client->send(header.c_str(), header.size());
+		client->sendfile(sending_file->get_fd(), size);
 	}
 };
 

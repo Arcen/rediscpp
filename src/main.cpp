@@ -3,6 +3,8 @@
 int main(int argc, char *argv[])
 {
 	int thread = 3;
+	std::string host = "127.0.0.1";
+	std::string port = "6379";
 	for (int i = 1; i < argc; ++i) {
 		if (*argv[i] == '-') {
 			switch (argv[i][1]) {
@@ -12,11 +14,23 @@ int main(int argc, char *argv[])
 					thread = atoi(argv[i]);
 				}
 				break;
+			case 'h':
+				++i;
+				if (i < argc) {
+					host = argv[i];
+				}
+				break;
+			case 'p':
+				++i;
+				if (i < argc) {
+					port = argv[i];
+				}
+				break;
 			}
 		}
 	}
 	rediscpp::server_type server;
-	if (!server.start("127.0.0.1", "6379", thread)) {
+	if (!server.start(host, port, thread)) {
 		return -1;
 	}
 	return 0;
