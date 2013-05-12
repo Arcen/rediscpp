@@ -115,24 +115,11 @@ namespace rediscpp
 					std::string line;
 					if (parse_line(line)) {
 						if (line == "+PONG") {
-							std::string sync("*1\r\n$4\r\nSYNC\r\n");
-							if (!client->send(sync.c_str(), sync.size())) {
-								lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
-								state = shutdown_state;
-								continue;
-							}
-							client->send();
-							state = waiting_sync_state;
+							state = request_replconf_state;
 							continue;
 						} else if (line.substr(0, 7) == "-NOAUTH") {
-							std::string auth = format("*2\r\n$4\r\nAUTH\r\n$%d\r\n", password.size()) + password + "\r\n";
-							if (!client->send(auth.c_str(), auth.size())) {
-								lprintf(__FILE__, __LINE__, error_level, "failed to send auth");
-								state = shutdown_state;
-								continue;
-							}
-							client->send();
-							state = waiting_auth_state;
+							state = request_auth_state;
+							continue;
 						} else {
 							lprintf(__FILE__, __LINE__, error_level, "failed to get ping response");
 							state = shutdown_state;
@@ -141,25 +128,70 @@ namespace rediscpp
 					}
 				}
 				return;
+			case request_auth_state:
+				{
+					std::string auth = format("*2\r\n$4\r\nAUTH\r\n$%d\r\n", password.size()) + password + "\r\n";
+					if (!client->send(auth.c_str(), auth.size())) {
+						lprintf(__FILE__, __LINE__, error_level, "failed to send auth");
+						state = shutdown_state;
+						continue;
+					}
+					client->send();
+					state = waiting_auth_state;
+				}
+				return;
 			case waiting_auth_state:
 				if (client->should_recv()) {
 					std::string line;
 					if (parse_line(line)) {
 						if (line.substr(0,1) == "+") {
-							std::string sync("*1\r\n$4\r\nSYNC\r\n");
-							if (!client->send(sync.c_str(), sync.size())) {
-								lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
-								state = shutdown_state;
-								continue;
-							}
-							client->send();
-							state = waiting_sync_state;
+							state = request_replconf_state;
+							continue;
 						} else {
 							lprintf(__FILE__, __LINE__, error_level, "failed to get auth response");
 							state = shutdown_state;
 							continue;
 						}
 					}
+				}
+				return;
+			case request_replconf_state:
+				{
+					std::string sync("*2\r\n$8\r\nREPLCONF\r\n");
+					if (!client->send(sync.c_str(), sync.size())) {
+						lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
+						state = shutdown_state;
+						continue;
+					}
+					client->send();
+					state = waiting_replconf_state;
+				}
+				return;
+			case waiting_replconf_state:
+				if (client->should_recv()) {
+					std::string line;
+					if (parse_line(line)) {
+						if (line.substr(0,1) == "+") {
+							state = request_sync_state;
+							continue;
+						} else {
+							lprintf(__FILE__, __LINE__, error_level, "failed to get replconf response");
+							state = shutdown_state;
+							continue;
+						}
+					}
+				}
+				return;
+			case request_sync_state:
+				{
+					std::string sync("*1\r\n$4\r\nSYNC\r\n");
+					if (!client->send(sync.c_str(), sync.size())) {
+						lprintf(__FILE__, __LINE__, error_level, "failed to send sync");
+						state = shutdown_state;
+						continue;
+					}
+					client->send();
+					state = waiting_sync_state;
 				}
 				return;
 			case waiting_sync_state:
@@ -181,7 +213,6 @@ namespace rediscpp
 					}
 				} else if (sync_file) {
 					if (client->should_recv()) {
-						lprintf(__FILE__, __LINE__, error_level, "recving sync file");
 						auto & buf = client->get_recv();
 						size_t size = std::min(sync_file_size, buf.size());
 						auto end = buf.begin() + size;
@@ -190,23 +221,24 @@ namespace rediscpp
 						sync_file->flush();
 						buf.erase(buf.begin(), end);
 						sync_file_size -= size;
-						if (sync_file_size == 0) {
-							sync_file.reset();
-							//load
-							if (!server.load("/tmp/redis.sync.rdb")) {
-								lprintf(__FILE__, __LINE__, error_level, "failed to load sync file");
-								state = shutdown_state;
-								continue;
-							}
+					}
+					if (sync_file_size == 0) {
+						sync_file.reset();
+						//load
+						if (!server.load("/tmp/redis.sync.rdb")) {
+							lprintf(__FILE__, __LINE__, error_level, "failed to load sync file");
+							state = shutdown_state;
 							::unlink("/tmp/redis.sync.rdb");
-							client->set_callback(server_type::client_callback);
-							std::shared_ptr<client_type> master_client(new client_type(server, client, ""));
-							master_client->set(master_client);
-							client->set_extra2(master_client.get());
-							master_client->set_master();//マスターとして取り扱う
-							server.append_client(master_client);
-							return;
+							continue;
 						}
+						::unlink("/tmp/redis.sync.rdb");
+						client->set_callback(server_type::client_callback);
+						std::shared_ptr<client_type> master_client(new client_type(server, client, ""));
+						master_client->set(master_client);
+						client->set_extra2(master_client.get());
+						master_client->set_master();//マスターとして取り扱う
+						server.append_client(master_client);
+						return;
 					}
 				} else {
 					lprintf(__FILE__, __LINE__, error_level, "failed to get sync file object");

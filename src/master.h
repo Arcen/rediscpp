@@ -21,7 +21,11 @@ namespace rediscpp
 		std::weak_ptr<master_type> self;
 		enum status {
 			waiting_pong_state,
+			request_auth_state,
 			waiting_auth_state,
+			request_replconf_state,
+			waiting_replconf_state,
+			request_sync_state,
 			waiting_sync_state,
 			shutdown_state,
 		};

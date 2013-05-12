@@ -256,6 +256,9 @@ namespace rediscpp
 				unblocked(client);
 			}
 			client->client->close();
+			if (client->is_master()) {
+				master.reset();
+			}
 			clients.erase(client->client.get());
 		} else {
 			std::shared_ptr<job_type> job(new job_type(job_type::del_type, client));
