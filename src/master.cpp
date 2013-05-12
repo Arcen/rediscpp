@@ -54,6 +54,7 @@ namespace rediscpp
 					lprintf(__FILE__, __LINE__, error_level, "failed to connect master");
 					return;
 				}
+				//@note 送信バッファに設定することで、接続済みのイベントを取得して、送信する
 				std::string ping("*1\r\n$4\r\nPING\r\n");
 				connection->send(ping.c_str(), ping.size());
 				master.reset(new master_type(*this, connection, password));

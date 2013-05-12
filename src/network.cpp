@@ -242,12 +242,13 @@ namespace rediscpp
 			switch (errno) {
 			case EINPROGRESS:
 			case EALREADY:
+				//connecting
 				break;
 			default:
 				lputs(__FILE__, __LINE__, error_level, "::connect failed : " + string_error(errno));
 				return false;
 			}
-		}
+		}// else connected
 		if (!set_keepalive(true, 60, 30, 4)) {
 			return false;
 		}
@@ -280,17 +281,6 @@ namespace rediscpp
 			return false;
 		}
 		return true;
-	}
-	bool socket_type::is_connected()
-	{
-		int option = 0;
-		socklen_t optlen = sizeof(option);
-		int r = getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)&option, &optlen);
-		if (r < 0) {
-			lputs(__FILE__, __LINE__, error_level, "::getsockopt(SO_ERROR) failed : " + string_error(errno));
-			return false;
-		}
-		return option == 0;
 	}
 	bool socket_type::listen(int queue_count)
 	{
@@ -476,6 +466,19 @@ namespace rediscpp
 		finished_to_write = true;
 		send();
 	}
+	void socket_type::sendfile(int in_fd, size_t size)
+	{
+		sending_file_id = in_fd;
+		sending_file_size = size;
+		sent_file_size = 0;
+	}
+	uint32_t socket_type::get_events()
+	{
+		if (local.get()) {//server
+			return EPOLLIN;
+		}
+		return EPOLLIN | EPOLLET | EPOLLONESHOT | (should_send() ? EPOLLOUT : 0);
+	}
 	void pollable_type::close()
 	{
 		if (0 <= fd) {
@@ -581,6 +584,16 @@ namespace rediscpp
 		}
 		if (r < events.size()) {
 			events.resize(r);
+		}
+		for (auto it = events.begin(), end = events.end(); it != end; ++it) {
+			auto & event = *it;
+			auto pollable = reinterpret_cast<pollable_type*>(it->data.ptr);
+			if (pollable) {
+				auto socket = dynamic_cast<socket_type*>(pollable);
+				if (socket && (it->events & EPOLLOUT)) {
+					socket->send();
+				}
+			}
 		}
 		return true;
 	}

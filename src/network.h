@@ -100,13 +100,20 @@ namespace rediscpp
 	};
 	class socket_type : public pollable_type
 	{
+		friend class poll_type;
+
 		std::shared_ptr<address_type> local;
 		std::shared_ptr<address_type> peer;///<リモートアドレス
 		bool finished_to_read;
 		bool finished_to_write;
 		int shutdowning;
 		bool broken;
-		friend class poll_type;
+		std::deque<uint8_t> recv_buffer;
+		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
+		int sending_file_id;
+		size_t sending_file_size;
+		size_t sent_file_size;
+
 		socket_type();
 		socket_type(int s);
 	public:
@@ -119,28 +126,16 @@ namespace rediscpp
 		bool set_keepalive(bool keepalive, int idle, int interval, int count);
 		bool bind(std::shared_ptr<address_type> address);
 		bool connect(std::shared_ptr<address_type> address);
-		bool is_connected();
 		bool listen(int queue_count);
 		std::shared_ptr<socket_type> accept();
 		bool is_broken() const { return broken; }
-	private:
-		std::deque<uint8_t> recv_buffer;
-		std::deque<std::pair<std::vector<uint8_t>,size_t>> send_buffers;
-		int sending_file_id;
-		size_t sending_file_size;
-		size_t sent_file_size;
 	public:
 		bool should_send() const { return (! send_buffers.empty() || is_sendfile()) && ! is_write_shutdowned(); }
 		bool should_recv() const { return ! recv_buffer.empty() && ! is_read_shutdowned(); }
 		bool send();
 		bool recv();
 		bool send(const void * buf, size_t len);
-		void sendfile(int in_fd, size_t size)
-		{
-			sending_file_id = in_fd;
-			sending_file_size = size;
-			sent_file_size = 0;
-		}
+		void sendfile(int in_fd, size_t size);
 		bool is_sendfile() const { return sent_file_size < sending_file_size; }
 		std::deque<uint8_t> & get_recv() { return recv_buffer; }
 		bool recv_done() const { return finished_to_read; }
@@ -148,13 +143,7 @@ namespace rediscpp
 		void close_after_send();
 		bool is_read_shutdowned() const { return shutdowning == SHUT_RD || shutdowning == SHUT_RDWR; }
 		bool is_write_shutdowned() const { return shutdowning == SHUT_WR || shutdowning == SHUT_RDWR; }
-		virtual uint32_t get_events()
-		{
-			if (local.get()) {//server
-				return EPOLLIN;
-			}
-			return EPOLLIN | EPOLLET | EPOLLONESHOT | (should_send() ? EPOLLOUT : 0);
-		}
+		virtual uint32_t get_events();
 		bool done() const { return recv_done() && ! should_recv() && ! should_send(); }
 		std::string get_peer_info() { return peer ? peer->get_info() : std::string(); }
 	};
@@ -403,7 +392,6 @@ namespace rediscpp
 		int fd;
 		int count;
 		std::weak_ptr<poll_type> self;
-		mutex_type mutex;
 		poll_type();
 	public:
 		static std::shared_ptr<poll_type> create();
