@@ -12,17 +12,17 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & members = client->get_members();
 		auto db = writable_db(client);
-		std::shared_ptr<type_set> set = db->get_set(key, current);
+		auto set = db->get_set_with_expire(key, current);
 		bool created = false;
-		if (!set) {
-			set.reset(new type_set(current));
+		if (!set.second) {
+			set.second.reset(new type_set());
 			created = true;
 		}
-		int64_t added = set->sadd(members);
+		int64_t added = set.second->sadd(members);
 		if (created) {
-			db->replace(key, set);
+			db->replace(key, expire_info(current), set.second);
 		} else {
-			set->update(current);
+			set.first->update(current);
 		}
 		client->response_integer(added);
 		return true;
@@ -87,36 +87,36 @@ namespace rediscpp
 		auto & member = *client->get_members()[0];
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<type_set> srcset = db->get_set(srckey, current);
-		std::shared_ptr<type_set> dstset = db->get_set(destkey, current);
-		if (!srcset) {
+		auto srcset = db->get_set_with_expire(srckey, current);
+		auto dstset = db->get_set_with_expire(destkey, current);
+		if (!srcset.second) {
 			client->response_integer0();
 			return true;
 		}
 		if (srckey == destkey) {
-			srcset->update(current);
+			srcset.first->update(current);
 			client->response_integer1();
 			return true;
 		}
-		if (!srcset->erase(member)) {
+		if (!srcset.second->erase(member)) {
 			client->response_integer0();
 			return true;
 		}
 		bool inserted = false;
-		if (!dstset) {
-			dstset.reset(new type_set(current));
-			inserted = dstset->insert(member);
-			db->replace(destkey, dstset);
+		if (!dstset.second) {
+			dstset.second.reset(new type_set());
+			inserted = dstset.second->insert(member);
+			db->replace(destkey, expire_info(current), dstset.second);
 		} else {
-			inserted = dstset->insert(member);
+			inserted = dstset.second->insert(member);
 			if (inserted) {
-				dstset->update(current);
+				dstset.first->update(current);
 			}
 		}
-		if (srcset->empty()) {
+		if (srcset.second->empty()) {
 			db->erase(srckey, current);
 		} else {
-			srcset->update(current);
+			srcset.first->update(current);
 		}
 		if (inserted) {
 			client->response_integer1();
@@ -132,19 +132,19 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<type_set> set = db->get_set(key, current);
-		if (!set || set->empty()) {
+		auto set = db->get_set_with_expire(key, current);
+		if (!set.second || set.second->empty()) {
 			client->response_null();
 			return true;
 		}
 		std::vector<std::set<std::string>::const_iterator> randmember;
-		set->srandmember(1, randmember);
+		set.second->srandmember(1, randmember);
 		std::string member = *randmember[0];
-		set->erase(member);
-		if (set->empty()) {
+		set.second->erase(member);
+		if (set.second->empty()) {
 			db->erase(key, current);
 		} else {
-			set->update(current);
+			set.first->update(current);
 		}
 		client->response_bulk(member);
 		return true;
@@ -188,16 +188,16 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & members = client->get_members();
 		auto db = writable_db(client);
-		std::shared_ptr<type_set> set = db->get_set(key, current);
-		if (!set || set->empty()) {
+		auto set = db->get_set_with_expire(key, current);
+		if (!set.second || set.second->empty()) {
 			client->response_integer0();
 			return true;
 		}
-		size_t removed = set->srem(members);
-		if (set->empty()) {
+		size_t removed = set.second->srem(members);
+		if (set.second->empty()) {
 			db->erase(key, current);
 		} else {
-			set->update(current);
+			set.first->update(current);
 		}
 		client->response_integer(removed);
 		return true;
@@ -236,7 +236,7 @@ namespace rediscpp
 		auto & argumens = client->get_arguments();
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<type_set> result(new type_set(current));
+		std::shared_ptr<type_set> result(new type_set());
 		auto it = keys.begin();
 		auto end = keys.end();
 		std::string destination;
@@ -280,7 +280,7 @@ namespace rediscpp
 			if (result->empty()) {
 				db->erase(destination, current);
 			} else {
-				db->replace(destination, result);
+				db->replace(destination, expire_info(current), result);
 			}
 			client->response_integer(result->size());
 			return true;

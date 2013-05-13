@@ -63,16 +63,11 @@ namespace rediscpp
 		}
 		return lhs->member < rhs->member;
 	}
-	type_zset::type_zset(const timeval_type & current)
-		: type_interface(current)
+	type_zset::type_zset()
 	{
 	}
 	type_zset::~type_zset()
 	{
-	}
-	std::string type_zset::get_type() const
-	{
-		return std::string("zset");
 	}
 	bool type_zset::erase_sorted(const std::shared_ptr<value_type> & rhs)
 	{

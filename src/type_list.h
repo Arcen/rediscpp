@@ -10,11 +10,14 @@ namespace rediscpp
 		std::list<std::string> value;
 		size_t size_;
 	public:
-		type_list(const timeval_type & current);
-		type_list(std::list<std::string> && value_, const timeval_type & current);
+		type_list();
+		type_list(std::list<std::string> && value_);
 		virtual ~type_list();
-		virtual std::string get_type() const;
-		virtual int get_int_type() const { return 1; }
+		virtual type_types get_type() const { return list_type; }
+		virtual void output(std::shared_ptr<file_type> & dst) const;
+		virtual void output(std::string & dst) const;
+		static std::shared_ptr<type_list> input(std::shared_ptr<file_type> & src);
+		static std::shared_ptr<type_list> input(std::pair<std::string::const_iterator,std::string::const_iterator> & src);
 		void lpush(const std::vector<std::string*> & elements);
 		void rpush(const std::vector<std::string*> & elements);
 		bool linsert(const std::string & pivot, const std::string & element, bool before);

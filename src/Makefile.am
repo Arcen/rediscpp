@@ -20,6 +20,7 @@ rediscpp_SOURCES = \
     api_hashes.cpp \
     api_sets.cpp \
     api_zsets.cpp \
+    expire_info.cpp \
     type_interface.cpp \
     type_hash.cpp \
     type_list.cpp \

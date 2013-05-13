@@ -35,10 +35,13 @@ namespace rediscpp
 		std::set<std::shared_ptr<value_type>, score_comparer> sorted;//スコアで並べた状態
 	public:
 		typedef std::set<std::shared_ptr<value_type>, score_comparer>::const_iterator const_iterator;
-		type_zset(const timeval_type & current);
+		type_zset();
 		virtual ~type_zset();
-		virtual std::string get_type() const;
-		virtual int get_int_type() const { return 3; }
+		virtual type_types get_type() const { return zset_type; }
+		virtual void output(std::shared_ptr<file_type> & dst) const;
+		virtual void output(std::string & dst) const;
+		static std::shared_ptr<type_zset> input(std::shared_ptr<file_type> & src);
+		static std::shared_ptr<type_zset> input(std::pair<std::string::const_iterator,std::string::const_iterator> & src);
 		size_t zadd(const std::vector<score_type> & scores, const std::vector<std::string*> & members);
 		size_t zrem(const std::vector<std::string*> & members);
 		size_t zcard() const;

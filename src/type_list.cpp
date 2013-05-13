@@ -2,23 +2,17 @@
 
 namespace rediscpp
 {
-	type_list::type_list(const timeval_type & current)
-		: type_interface(current)
-		, size_(0)
+	type_list::type_list()
+		: size_(0)
 	{
 	}
-	type_list::type_list(std::list<std::string> && value_, const timeval_type & current)
-		: type_interface(current)
-		, value(std::move(value_))
+	type_list::type_list(std::list<std::string> && value_)
+		: value(std::move(value_))
 		, size_(value.size())
 	{
 	}
 	type_list::~type_list()
 	{
-	}
-	std::string type_list::get_type() const
-	{
-		return std::string("list");
 	}
 	void type_list::lpush(const std::vector<std::string*> & elements)
 	{

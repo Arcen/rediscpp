@@ -533,7 +533,7 @@ namespace rediscpp
 					pollable->trigger(it->events);
 				}
 			}
-		} catch (std::exception e) {
+		} catch (const std::exception & e) {
 			lprintf(__FILE__, __LINE__, info_level, "exception %s", e.what());
 		} catch (...) {
 			lprintf(__FILE__, __LINE__, info_level, "exception");

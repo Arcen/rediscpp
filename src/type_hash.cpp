@@ -2,16 +2,11 @@
 
 namespace rediscpp
 {
-	type_hash::type_hash(const timeval_type & current)
-		: type_interface(current)
+	type_hash::type_hash()
 	{
 	}
 	type_hash::~type_hash()
 	{
-	}
-	std::string type_hash::get_type() const
-	{
-		return std::string("hash");
 	}
 	size_t type_hash::hdel(const std::vector<std::string*> & fields)
 	{

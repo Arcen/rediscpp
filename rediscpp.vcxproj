@@ -96,6 +96,7 @@
     <ClCompile Include="src\common.cpp" />
     <ClCompile Include="src\crc64.cpp" />
     <ClCompile Include="src\database.cpp" />
+    <ClCompile Include="src\expire_info.cpp" />
     <ClCompile Include="src\log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\master.cpp" />
@@ -115,6 +116,7 @@
     <ClInclude Include="src\common.h" />
     <ClInclude Include="src\crc64.h" />
     <ClInclude Include="src\database.h" />
+    <ClInclude Include="src\expire_info.h" />
     <ClInclude Include="src\file.h" />
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\master.h" />

@@ -9,10 +9,13 @@ namespace rediscpp
 	{
 		std::set<std::string> value;
 	public:
-		type_set(const timeval_type & current);
+		type_set();
 		virtual ~type_set();
-		virtual std::string get_type() const;
-		virtual int get_int_type() const { return 2; }
+		virtual type_types get_type() const { return set_type; }
+		virtual void output(std::shared_ptr<file_type> & dst) const;
+		virtual void output(std::string & dst) const;
+		static std::shared_ptr<type_set> input(std::shared_ptr<file_type> & src);
+		static std::shared_ptr<type_set> input(std::pair<std::string::const_iterator,std::string::const_iterator> & src);
 		size_t sadd(const std::vector<std::string*> & members);
 		size_t scard() const;
 		bool sismember(const std::string & member) const;

@@ -2,16 +2,14 @@
 
 namespace rediscpp
 {
-	type_string::type_string(const std::string & string_value_, const timeval_type & current)
-		: type_interface(current)
-		, string_value(string_value_)
+	type_string::type_string(const std::string & string_value_)
+		: string_value(string_value_)
 		, int_value(0)
 		, int_type(false)
 	{
 	}
-	type_string::type_string(std::string && string_value_, const timeval_type & current)
-		: type_interface(current)
-		, string_value(std::move(string_value_))
+	type_string::type_string(std::string && string_value_)
+		: string_value(std::move(string_value_))
 		, int_value(0)
 		, int_type(false)
 	{
@@ -25,10 +23,6 @@ namespace rediscpp
 	}
 	type_string::~type_string()
 	{
-	}
-	std::string type_string::get_type() const
-	{
-		return std::string("string");
 	}
 	std::string & type_string::ref()
 	{

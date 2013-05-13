@@ -12,16 +12,16 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & fields = client->get_fields();
 		auto db = writable_db(client);
-		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
-		if (!hash) {
+		auto hash = db->get_hash_with_expire(key, current);
+		if (!hash.second) {
 			client->response_integer0();
 			return true;
 		}
-		int64_t removed = hash->hdel(fields);
-		if (hash->empty()) {
+		int64_t removed = hash.second->hdel(fields);
+		if (hash.second->empty()) {
 			db->erase(key, current);
 		} else {
-			hash->update(current);
+			hash.first->update(current);
 		}
 		client->response_integer(removed);
 		return true;
@@ -171,25 +171,24 @@ namespace rediscpp
 			throw std::runtime_error("ERR increment is not valid integer");
 		}
 		auto db = writable_db(client);
-		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
+		auto hash = db->get_hash_with_expire(key, current);
 		std::string oldval = "0";
-		if (hash) {
-			auto r = hash->hget(field);
+		if (hash.second) {
+			auto r = hash.second->hget(field);
 			if (r.second) {
 				oldval = r.first;
 			}
 		}
 		int64_t newval = incrby(oldval, intval);
 		std::string newstr = format("%"PRId64, newval);
-		if (!hash) {
-			hash.reset(new type_hash(current));
-			hash->hset(field, newstr);
-			db->replace(key, hash);
+		if (!hash.second) {
+			hash.second.reset(new type_hash());
+			hash.second->hset(field, newstr);
+			db->replace(key, expire_info(current), hash.second);
 		} else {
-			hash->hset(field, newstr);
-			hash->update(current);
+			hash.second->hset(field, newstr);
+			hash.first->update(current);
 		}
-		db->replace(key, hash);
 		client->response_integer(newval);
 		return true;
 	}
@@ -202,24 +201,23 @@ namespace rediscpp
 		auto & field = *client->get_fields()[0];
 		auto & increment = client->get_argument(3);
 		auto db = writable_db(client);
-		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
+		auto hash = db->get_hash_with_expire(key, current);
 		std::string oldval = "0";
-		if (hash) {
-			auto r = hash->hget(field);
+		if (hash.second) {
+			auto r = hash.second->hget(field);
 			if (r.second) {
 				oldval = r.first;
 			}
 		}
 		std::string newstr = incrbyfloat(oldval, increment);
-		if (!hash) {
-			hash.reset(new type_hash(current));
-			hash->hset(field, newstr);
-			db->replace(key, hash);
+		if (!hash.second) {
+			hash.second.reset(new type_hash());
+			hash.second->hset(field, newstr);
+			db->replace(key, expire_info(current), hash.second);
 		} else {
-			hash->hset(field, newstr);
-			hash->update(current);
+			hash.second->hset(field, newstr);
+			hash.first->update(current);
 		}
-		db->replace(key, hash);
 		client->response_bulk(newstr);
 		return true;
 	}
@@ -242,17 +240,17 @@ namespace rediscpp
 		auto & field = *client->get_fields()[0];
 		auto & value = *client->get_values()[0];
 		auto db = writable_db(client);
-		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
+		auto hash = db->get_hash_with_expire(key, current);
 		bool create = true;
-		if (hash) {
-			create = hash->hset(field, value, nx);
+		if (hash.second) {
+			create = hash.second->hset(field, value, nx);
 			if (create || !nx) {
-				hash->update(current);
+				hash.first->update(current);
 			}
 		} else {
-			hash.reset(new type_hash(current));
-			hash->hset(field, value);
-			db->replace(key, hash);
+			hash.second.reset(new type_hash());
+			hash.second->hset(field, value);
+			db->replace(key, expire_info(current), hash.second);
 		}
 		client->response_integer(create ? 1 : 0);
 		return true;
@@ -264,17 +262,17 @@ namespace rediscpp
 		auto & fields = client->get_fields();
 		auto & values = client->get_values();
 		auto db = writable_db(client);
-		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
-		if (!hash) {
-			hash.reset(new type_hash(current));
-			db->replace(key, hash);
+		auto hash = db->get_hash_with_expire(key, current);
+		if (!hash.second) {
+			hash.second.reset(new type_hash());
+			db->replace(key, expire_info(current), hash.second);
 		}
 		for (auto it = fields.begin(), end = fields.end(), vit = values.begin(), vend = values.end(); it != end && vit != vend; ++it, ++vit) {
 			auto & field = **it;
 			auto & value = **vit;
-			hash->hset(field, value);
+			hash.second->hset(field, value);
 		}
-		hash->update(current);
+		hash.first->update(current);
 		client->response_ok();
 		return true;
 	}

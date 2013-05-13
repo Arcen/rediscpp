@@ -21,6 +21,8 @@ namespace rediscpp
 		, writing_transaction(false)
 		, multi_executing(false)
 		, current_time(0, 0)
+		, write_mutex(true)
+		, events(0)
 		, blocked(false)
 		, blocked_till(0, 0)
 		, listening_port(0)
@@ -310,7 +312,7 @@ namespace rediscpp
 				throw std::runtime_error("ERR syntax error");
 			}
 			auto & command = arguments.front();
-			lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
+			//lprintf(__FILE__, __LINE__, debug_level, "command %s", command.c_str());
 			std::transform(command.begin(), command.end(), command.begin(), toupper);
 			if (require_auth(command)) {
 				throw std::runtime_error("NOAUTH Authentication required.");

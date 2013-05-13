@@ -103,12 +103,12 @@ namespace rediscpp
 		}
 		auto & key = client->get_argument(1);
 		auto db = writable_db(client);
-		auto value = db->get(key, current);
-		if (!value.get()) {
+		auto value = db->get_with_expire(key, current);
+		if (!value.second) {
 			client->response_integer0();
 			return true;
 		}
-		value->expire(tv);
+		value.first->expire(tv);
 		db->regist_expiring_key(tv, key);
 		client->response_integer1();
 		return true;
@@ -120,11 +120,11 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto value = db->get(key, current);
-		if (!value.get()) {
+		auto value = db->get_with_expire(key, current);
+		if (!value.second) {
 			client->response_integer0();
 		} else {
-			value->persist();
+			value.first->persist();
 			client->response_integer1();
 		}
 		return true;
@@ -146,16 +146,16 @@ namespace rediscpp
 		auto db = readable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto value = db->get(key, current);
-		if (!value.get()) {
+		auto value = db->get_with_expire(key, current);
+		if (!value.second) {
 			client->response_integer(-2);
 			return true;
 		}
-		if (!value->is_expiring()) {
+		if (!value.first->is_expiring()) {
 			client->response_integer(-1);
 			return true;
 		}
-		timeval_type ttl = value->ttl(current);
+		timeval_type ttl = value.first->ttl(current);
 		uint64_t result = ttl.tv_sec * 1000 + ttl.tv_usec / 1000;
 		if (sec) {
 			result /= 1000;
@@ -182,8 +182,8 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & src_db = *dbs[src_index];
 		auto & dst_db = *dbs[dst_index];
-		auto value = src_db->get(key, current);
-		if (!value.get()) {
+		auto value = src_db->get_with_expire(key, current);
+		if (!value.second) {
 			client->response_integer0();
 			return true;
 		}
@@ -191,7 +191,7 @@ namespace rediscpp
 			client->response_integer0();
 			return true;
 		}
-		if (!dst_db->insert(key, value, current)) {
+		if (!dst_db->insert(key, *value.first, value.second, current)) {
 			client->response_integer0();
 			return false;
 		}
@@ -220,8 +220,8 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto value = db->get(key, current);
-		if (!value.get()) {
+		auto value = db->get_with_expire(key, current);
+		if (!value.second) {
 			throw std::runtime_error("ERR not exist");
 		}
 		auto newkey = client->get_argument(2);
@@ -229,7 +229,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR same key");
 		}
 		db->erase(key, current);
-		db->replace(newkey, value);
+		db->replace(newkey, *value.first, value.second);
 		client->response_ok();
 		return true;
 	}
@@ -240,8 +240,8 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto value = db->get(key, current);
-		if (!value.get()) {
+		auto value = db->get_with_expire(key, current);
+		if (!value.second) {
 			throw std::runtime_error("ERR not exist");
 		}
 		auto & newkey = client->get_argument(2);
@@ -253,7 +253,7 @@ namespace rediscpp
 			client->response_integer0();
 			return true;
 		}
-		if (!db->insert(newkey, value, current)) {
+		if (!db->insert(newkey, *value.first, value.second, current)) {
 			throw std::runtime_error("ERR internal error");
 		}
 		db->erase(key, current);
@@ -272,7 +272,14 @@ namespace rediscpp
 			client->response_status("none");
 			return true;
 		}
-		client->response_status(value->get_type());
+		static const std::string types[5] = {
+			std::string("string"), 
+			std::string("list"), 
+			std::string("set"), 
+			std::string("zset"), 
+			std::string("hash"), 
+		};
+		client->response_status(types[value->get_type()]);
 		return true;
 	}
 	template<typename T1, typename T2>
@@ -647,7 +654,7 @@ namespace rediscpp
 			}
 		}
 		values.clear();
-		std::shared_ptr<type_list> result(new type_list(std::move(list_values), current));
+		std::shared_ptr<type_list> result(new type_list(std::move(list_values)));
 		if (store) {
 			client->response_integer(result->size());
 		} else {
@@ -679,8 +686,7 @@ namespace rediscpp
 			return true;
 		}
 		std::string dst;
-		const int value_type = value->get_int_type();
-		dst.push_back(value_type);
+		dst.push_back(value->get_type());
 		dump(dst, value);
 		dump_suffix(dst);
 		client->response_bulk(dst);
@@ -699,18 +705,16 @@ namespace rediscpp
 			throw std::runtime_error("ERR invalid ttl");
 		}
 		auto current = client->get_time();
+		expire_info expire(current);
 		std::shared_ptr<type_interface> value = restore(src, current);
 		timeval_type tv(0,0);
 		if (0 < timeval) {
 			tv = current;
 			tv.add_msec(timeval);
-			value->expire(tv);
+			expire.expire(tv);
 		}
 		auto db = writable_db(client);
-		db->insert(key, value, current);
-		if (0 < timeval) {
-			db->regist_expiring_key(tv, key);
-		}
+		db->insert(key, expire, value, current);
 		client->response_ok();
 		return true;
 	}

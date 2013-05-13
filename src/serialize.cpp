@@ -23,31 +23,26 @@ namespace rediscpp
 		double_nan = 253,
 		double_pinf = 254,
 		double_ninf = 255,
-		int_type_string = 0,
-		int_type_list = 1,
-		int_type_set = 2,
-		int_type_zset = 3,
-		int_type_hash = 4,
 	};
 
-	static void write_len(std::shared_ptr<file_type> & f, uint32_t len)
+	void type_interface::write_len(std::shared_ptr<file_type> & dst, uint32_t len)
 	{
 		if (len < 0x40) {//6bit (8-2)
-			f->write8(len/* | len_6bit*/);
+			dst->write8(len/* | len_6bit*/);
 		} else if (len < 0x4000) {//14bit (16-2)
-			f->write8((len >> 8) | len_14bit);
-			f->write8(len & 0xFF);
+			dst->write8((len >> 8) | len_14bit);
+			dst->write8(len & 0xFF);
 		} else {
-			f->write8(len_32bit);
-			f->write(&len, 4);
+			dst->write8(len_32bit);
+			dst->write(&len, 4);
 		}
 	}
-	static void write_string(std::shared_ptr<file_type> & dst, const std::string & str)
+	void type_interface::write_string(std::shared_ptr<file_type> & dst, const std::string & str)
 	{
 		write_len(dst, str.size());
 		dst->write(str);
 	}
-	static void write_double(std::shared_ptr<file_type> & dst, double val)
+	void type_interface::write_double(std::shared_ptr<file_type> & dst, double val)
 	{
 		if (isnan(val)) {
 			dst->write8(double_nan);
@@ -59,7 +54,7 @@ namespace rediscpp
 			write_string(dst, str);
 		}
 	}
-	static void write_len(std::string & dst, uint32_t len)
+	void type_interface::write_len(std::string & dst, uint32_t len)
 	{
 		if (len < 0x40) {//6bit (8-2)
 			dst.push_back(len/* | len_6bit*/);
@@ -71,12 +66,12 @@ namespace rediscpp
 			dst.insert(dst.end(), reinterpret_cast<char*>(&len), reinterpret_cast<char*>(&len) + 4);
 		}
 	}
-	static void write_string(std::string & dst, const std::string & str)
+	void type_interface::write_string(std::string & dst, const std::string & str)
 	{
 		write_len(dst, str.size());
 		dst.insert(dst.end(), str.begin(), str.end());
 	}
-	static void write_double(std::string & dst, double val)
+	void type_interface::write_double(std::string & dst, double val)
 	{
 		if (isnan(val)) {
 			dst.push_back(double_nan);
@@ -88,7 +83,7 @@ namespace rediscpp
 			write_string(dst, str);
 		}
 	}
-	static uint32_t read_len(std::shared_ptr<file_type> & src)
+	uint32_t type_interface::read_len(std::shared_ptr<file_type> & src)
 	{
 		uint8_t head = src->read8();
 		switch (head & 0xC0) {
@@ -102,7 +97,7 @@ namespace rediscpp
 			throw std::runtime_error("length invalid");
 		}
 	}
-	static std::string read_string(std::shared_ptr<file_type> & src)
+	std::string type_interface::read_string(std::shared_ptr<file_type> & src)
 	{
 		uint32_t len = read_len(src);
 		if (!len) return std::move(std::string());
@@ -110,7 +105,7 @@ namespace rediscpp
 		src->read(&str[0], len);
 		return std::move(str);
 	}
-	static double read_double(std::shared_ptr<file_type> & src)
+	double type_interface::read_double(std::shared_ptr<file_type> & src)
 	{
 		uint8_t head = src->read8();
 		switch (head) {
@@ -132,8 +127,10 @@ namespace rediscpp
 		}
 		return d;
 	}
-	static uint32_t read_len(std::string::const_iterator & it, std::string::const_iterator end)
+	uint32_t type_interface::read_len(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
 	{
+		auto & it = src.first;
+		auto & end = src.second;
 		if (it == end) {
 			throw std::runtime_error("not enough");
 		}
@@ -161,9 +158,11 @@ namespace rediscpp
 			throw std::runtime_error("length invalid");
 		}
 	}
-	static std::string read_string(std::string::const_iterator & it, std::string::const_iterator end)
+	std::string type_interface::read_string(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
 	{
-		uint32_t len = read_len(it, end);
+		auto & it = src.first;
+		auto & end = src.second;
+		uint32_t len = read_len(src);
 		if (!len) return std::move(std::string());
 		if (std::distance(it, end) < len) {
 			throw std::runtime_error("not enough");
@@ -172,8 +171,10 @@ namespace rediscpp
 		it += len;
 		return std::move(str);
 	}
-	static double read_double(std::string::const_iterator & it, std::string::const_iterator end)
+	double type_interface::read_double(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
 	{
+		auto & it = src.first;
+		auto & end = src.second;
 		if (it == end) {
 			throw std::runtime_error("not enough");
 		}
@@ -200,63 +201,191 @@ namespace rediscpp
 		}
 		return d;
 	}
+	void type_string::output(std::shared_ptr<file_type> & dst) const
+	{
+		write_string(dst, get());
+	}
+	void type_string::output(std::string & dst) const
+	{
+		write_string(dst, get());
+	}
+	std::shared_ptr<type_string> type_string::input(std::shared_ptr<file_type> & src)
+	{
+		auto strval = read_string(src);
+		return std::shared_ptr<type_string>(new type_string(std::move(strval)));
+	}
+	std::shared_ptr<type_string> type_string::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
+	{
+		auto strval = read_string(src);
+		return std::shared_ptr<type_string>(new type_string(std::move(strval)));
+	}
+	void type_list::output(std::shared_ptr<file_type> & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			write_string(dst, *it);
+		}
+	}
+	void type_list::output(std::string & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			write_string(dst, *it);
+		}
+	}
+	std::shared_ptr<type_list> type_list::input(std::shared_ptr<file_type> & src)
+	{
+		std::shared_ptr<type_list> result(new type_list());
+		std::list<std::string> & value = result->value;
+		size_t & size = result->size_;
+		size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			value.push_back(read_string(src));
+		}
+		return result;
+	}
+	std::shared_ptr<type_list> type_list::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
+	{
+		std::shared_ptr<type_list> result(new type_list());
+		std::list<std::string> & value = result->value;
+		size_t & size = result->size_;
+		size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			value.push_back(read_string(src));
+		}
+		return result;
+	}
+	void type_set::output(std::shared_ptr<file_type> & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			write_string(dst, *it);
+		}
+	}
+	void type_set::output(std::string & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			write_string(dst, *it);
+		}
+	}
+	std::shared_ptr<type_set> type_set::input(std::shared_ptr<file_type> & src)
+	{
+		std::shared_ptr<type_set> result(new type_set());
+		std::set<std::string> & value = result->value;
+		size_t size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			value.insert(read_string(src));
+		}
+		return result;
+	}
+	std::shared_ptr<type_set> type_set::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
+	{
+		std::shared_ptr<type_set> result(new type_set());
+		std::set<std::string> & value = result->value;
+		size_t size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			value.insert(read_string(src));
+		}
+		return result;
+	}
+	void type_zset::output(std::shared_ptr<file_type> & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = sorted.begin(), end = sorted.end(); it != end; ++it) {
+			auto & pair = *it;
+			write_string(dst, pair->member);
+			write_double(dst, pair->score);
+		}
+	}
+	void type_zset::output(std::string & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = sorted.begin(), end = sorted.end(); it != end; ++it) {
+			auto & pair = *it;
+			write_string(dst, pair->member);
+			write_double(dst, pair->score);
+		}
+	}
+	std::shared_ptr<type_zset> type_zset::input(std::shared_ptr<file_type> & src)
+	{
+		size_t size = read_len(src);
+		std::vector<double> scores(size);
+		std::vector<std::string> members_(size);
+		std::vector<std::string *> members(size);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			auto member = read_string(src);
+			auto score = read_double(src);
+			scores[i] = score;
+			members_[i] = member;
+			members[i] = &members_[i];
+		}
+		std::shared_ptr<type_zset> result(new type_zset());
+		result->zadd(scores, members);
+		return result;
+	}
+	std::shared_ptr<type_zset> type_zset::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
+	{
+		size_t size = read_len(src);
+		std::vector<double> scores(size);
+		std::vector<std::string> members_(size);
+		std::vector<std::string *> members(size);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			auto member = read_string(src);
+			auto score = read_double(src);
+			scores[i] = score;
+			members_[i] = member;
+			members[i] = &members_[i];
+		}
+		std::shared_ptr<type_zset> result(new type_zset());
+		result->zadd(scores, members);
+		return result;
+	}
+	void type_hash::output(std::shared_ptr<file_type> & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			auto & pair = *it;
+			write_string(dst, pair.first);
+			write_string(dst, pair.second);
+		}
+	}
+	void type_hash::output(std::string & dst) const
+	{
+		write_len(dst, size());
+		for (auto it = value.begin(), end = value.end(); it != end; ++it) {
+			auto & pair = *it;
+			write_string(dst, pair.first);
+			write_string(dst, pair.second);
+		}
+	}
+	std::shared_ptr<type_hash> type_hash::input(std::shared_ptr<file_type> & src)
+	{
+		std::shared_ptr<type_hash> result(new type_hash());
+		size_t size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			auto field = read_string(src);
+			auto value = read_string(src);
+			result->hset(field, value);
+		}
+		return result;
+	}
+	std::shared_ptr<type_hash> type_hash::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
+	{
+		std::shared_ptr<type_hash> result(new type_hash());
+		size_t size = read_len(src);
+		for (size_t i = 0, n = size; i < n; ++i) {
+			auto field = read_string(src);
+			auto value = read_string(src);
+			result->hset(field, value);
+		}
+		return result;
+	}
+
 	void server_type::dump(std::string & dst, const std::shared_ptr<type_interface> & value)
 	{
 		dst.reserve(1024);
-		switch (value->get_int_type()) {
-		case int_type_string:
-			{
-				std::shared_ptr<type_string> str = std::dynamic_pointer_cast<type_string>(value);
-				write_string(dst, str->get());
-			}
-			break;
-		case int_type_list:
-			{
-				std::shared_ptr<type_list> list = std::dynamic_pointer_cast<type_list>(value);
-				write_len(dst, list->size());
-				auto range = list->get_range();
-				for (auto it = range.first; it != range.second; ++it) {
-					auto & str = *it;
-					write_string(dst, str);
-				}
-			}
-			break;
-		case int_type_set:
-			{
-				std::shared_ptr<type_set> set = std::dynamic_pointer_cast<type_set>(value);
-				write_len(dst, set->size());
-				auto range = set->smembers();
-				for (auto it = range.first; it != range.second; ++it) {
-					auto & str = *it;
-					write_string(dst, str);
-				}
-			}
-			break;
-		case int_type_zset:
-			{
-				std::shared_ptr<type_zset> zset = std::dynamic_pointer_cast<type_zset>(value);
-				write_len(dst, zset->size());
-				auto range = zset->zrange();
-				for (auto it = range.first; it != range.second; ++it) {
-					auto & pair = *it;
-					write_string(dst, pair->member);
-					write_double(dst, pair->score);
-				}
-			}
-			break;
-		case int_type_hash:
-			{
-				std::shared_ptr<type_hash> hash = std::dynamic_pointer_cast<type_hash>(value);
-				write_len(dst, hash->size());
-				auto range = hash->hgetall();
-				for (auto it = range.first; it != range.second; ++it) {
-					auto & pair = *it;
-					write_string(dst, pair.first);
-					write_string(dst, pair.second);
-				}
-			}
-			break;
-		}
+		value->output(dst);
 	}
 	std::shared_ptr<type_interface> server_type::restore(const std::string & src, const timeval_type & current)
 	{
@@ -264,78 +393,35 @@ namespace rediscpp
 		if (src.empty()) {
 			return value;
 		}
-		std::string::const_iterator it = src.begin(), end = src.end();
-		switch (*it++) {
-		case int_type_string:
-			{
-				auto strval = read_string(it, end);
-				std::shared_ptr<type_string> str(new type_string(strval, current));
-				value = str;
-			}
+		std::pair<std::string::const_iterator, std::string::const_iterator> range(src.begin(), src.end());
+		switch (*range.first++) {
+		case string_type:
+			value = type_string::input(range);
 			break;
-		case int_type_list:
-			{
-				std::shared_ptr<type_list> list(new type_list(current));
-				uint32_t count = read_len(it, end);
-				for (uint32_t i = 0; i < count; ++i) {
-					auto strval = read_string(it, end);
-					list->rpush(strval);
-				}
-				value = list;
-			}
+		case list_type:
+			value = type_list::input(range);
 			break;
-		case int_type_set:
-			{
-				std::shared_ptr<type_set> set(new type_set(current));
-				uint32_t count = read_len(it, end);
-				std::vector<std::string *> members(1, NULL);
-				for (uint32_t i = 0; i < count; ++i) {
-					auto strval = read_string(it, end);
-					members[0] = &strval;
-					set->sadd(members);
-				}
-				value = set;
-			}
+		case set_type:
+			value = type_set::input(range);
 			break;
-		case int_type_zset:
-			{
-				std::shared_ptr<type_zset> zset(new type_zset(current));
-				uint32_t count = read_len(it, end);
-				std::vector<double> scores(1, NULL);
-				std::vector<std::string *> members(1, NULL);
-				for (uint32_t i = 0; i < count; ++i) {
-					auto strval = read_string(it, end);
-					scores[0] = read_double(it, end);
-					members[0] = &strval;
-					zset->zadd(scores, members);
-				}
-				value = zset;
-			}
+		case zset_type:
+			value = type_zset::input(range);
 			break;
-		case int_type_hash:
-			{
-				std::shared_ptr<type_hash> hash(new type_hash(current));
-				uint32_t count = read_len(it, end);
-				for (uint32_t i = 0; i < count; ++i) {
-					auto strkey = read_string(it, end);
-					auto strval = read_string(it, end);
-					hash->hset(strkey, strval);
-				}
-				value = hash;
-			}
+		case hash_type:
+			value = type_hash::input(range);
 			break;
 		}
-		if (std::distance(it, end) != 2 + 8) {
+		if (std::distance(range.first, range.second) != 2 + 8) {
 			throw std::runtime_error("suffix error");
 		}
-		uint16_t ver = *it++;
-		ver |= (*it++) << 8;
+		uint16_t ver = *range.first++;
+		ver |= (*range.first++) << 8;
 		if (version < ver) {
 			throw std::runtime_error("version error");
 		}
 		uint64_t src_crc = 0;
 		for (int i = 0; i < 8; ++i) {
-			uint64_t val = static_cast<uint64_t>(*it++) & 0xFF;
+			uint64_t val = static_cast<uint64_t>(*range.first++) & 0xFF;
 			val <<= i * 8;
 			src_crc |= val;
 		}
@@ -362,22 +448,22 @@ namespace rediscpp
 				}
 				//selectdb i
 				f->write8(op_selectdb);
-				write_len(f, i);
+				type_interface::write_len(f, i);
 
 				for (auto it = range.first; it != range.second; ++it) {
 					auto & kv = *it;
 					auto & key = kv.first;
-					auto & value = kv.second;
-					if (value->is_expired(current)) {
+					auto & expire = kv.second.first;
+					auto & value = kv.second.second;
+					if (expire->is_expired(current)) {
 						continue;
 					}
-					if (value->is_expiring()) {
+					if (expire->is_expiring()) {
 						f->write8(op_expire_ms);
-						f->write64(value->at().get_ms());
+						f->write64(expire->at().get_ms());
 					}
-					const int value_type = value->get_int_type();
-					f->write8(value_type);
-					write_string(f, key);
+					f->write8(value->get_type());
+					type_interface::write_string(f, key);
 					std::string value_str;
 					dump(value_str, value);
 					f->write(value_str);
@@ -435,7 +521,7 @@ namespace rediscpp
 					}
 					continue;
 				case op_selectdb:
-					db_index = read_len(f);
+					db_index = type_interface::read_len(f);
 					if (databases.size() <= db_index) {
 						lprintf(__FILE__, __LINE__, info_level, "db index out of range");
 						throw std::runtime_error("db index out of range");
@@ -447,71 +533,31 @@ namespace rediscpp
 					continue;
 				default:
 					{
-						std::string key = read_string(f);
+						std::string key = type_interface::read_string(f);
 						std::shared_ptr<type_interface> value;
 						switch (op) {
-						case int_type_string:
-							{
-								std::shared_ptr<type_string> str(new type_string(read_string(f), current));
-								value = str;
-							}
+						case string_type:
+							value = type_string::input(f);
 							break;
-						case int_type_list:
-							{
-								std::shared_ptr<type_list> list(new type_list(current));
-								value = list;
-								uint32_t count = read_len(f);
-								for (uint32_t i = 0; i < count; ++i) {
-									list->rpush(read_string(f));
-								}
-							}
+						case list_type:
+							value = type_list::input(f);
 							break;
-						case int_type_set:
-							{
-								std::shared_ptr<type_set> set(new type_set(current));
-								value = set;
-								uint32_t count = read_len(f);
-								std::vector<std::string *> members(1, NULL);
-								for (uint32_t i = 0; i < count; ++i) {
-									auto strval = std::move(read_string(f));
-									members[0] = &strval;
-									set->sadd(members);
-								}
-							}
+						case set_type:
+							value = type_set::input(f);
 							break;
-						case int_type_zset:
-							{
-								std::shared_ptr<type_zset> zset(new type_zset(current));
-								value = zset;
-								uint32_t count = read_len(f);
-								std::vector<double> scores(1, NULL);
-								std::vector<std::string *> members(1, NULL);
-								for (uint32_t i = 0; i < count; ++i) {
-									auto strval = std::move(read_string(f));
-									scores[0] = read_double(f);
-									members[0] = &strval;
-									zset->zadd(scores, members);
-								}
-							}
+						case zset_type:
+							value = type_zset::input(f);
 							break;
-						case int_type_hash:
-							{
-								std::shared_ptr<type_hash> hash(new type_hash(current));
-								value = hash;
-								uint32_t count = read_len(f);
-								for (uint32_t i = 0; i < count; ++i) {
-									auto strkey = std::move(read_string(f));
-									auto strval = std::move(read_string(f));
-									hash->hset(strkey, strval);
-								}
-							}
+						case hash_type:
+							value = type_hash::input(f);
 							break;
 						}
+						expire_info expire(current);
 						if (expire_at) {
-							value->expire(timeval_type(expire_at / 1000, (expire_at % 1000) * 1000));
+							expire.expire(timeval_type(expire_at / 1000, (expire_at % 1000) * 1000));
 							expire_at = 0;
 						}
-						db->insert(key, value, current);
+						db->insert(key, expire, value, current);
 					}
 					break;
 				}

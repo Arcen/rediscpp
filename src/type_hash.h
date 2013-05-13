@@ -9,10 +9,13 @@ namespace rediscpp
 	{
 		std::unordered_map<std::string, std::string> value;
 	public:
-		type_hash(const timeval_type & current);
+		type_hash();
 		virtual ~type_hash();
-		virtual std::string get_type() const;
-		virtual int get_int_type() const { return 4; }
+		virtual type_types get_type() const { return hash_type; }
+		virtual void output(std::shared_ptr<file_type> & dst) const;
+		virtual void output(std::string & dst) const;
+		static std::shared_ptr<type_hash> input(std::shared_ptr<file_type> & src);
+		static std::shared_ptr<type_hash> input(std::pair<std::string::const_iterator,std::string::const_iterator> & src);
 		size_t hdel(const std::vector<std::string*> & fields);
 		bool hexists(const std::string field) const;
 		bool empty() const;
