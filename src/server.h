@@ -67,6 +67,9 @@ namespace rediscpp
 		api_info & type(const std::string & arg_types_)
 		{
 			arg_types = arg_types_;
+			if (min_argc == 1 && max_argc == 1) {
+				min_argc = max_argc = arg_types.size();
+			}
 			return *this;
 		}
 		api_info & write()

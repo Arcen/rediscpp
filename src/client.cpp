@@ -369,6 +369,7 @@ namespace rediscpp
 				case 'c'://command
 				case 't'://time
 				case 'n'://numeric
+				case 'p'://pattern
 					break;
 				case 'k'://key
 					keys.push_back(&arguments[arg_pos]);
@@ -410,6 +411,7 @@ namespace rediscpp
 					case 'c'://command
 					case 't'://time
 					case 'n'://numeric
+					case 'p'://pattern
 						break;
 					case 'k'://key
 						back_keys.push_front(&arguments[argc-1]);

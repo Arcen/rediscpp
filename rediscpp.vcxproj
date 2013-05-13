@@ -100,6 +100,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\master.cpp" />
     <ClCompile Include="src\network.cpp" />
+    <ClCompile Include="src\serialize.cpp" />
     <ClCompile Include="src\server.cpp" />
     <ClCompile Include="src\timeval.cpp" />
     <ClCompile Include="src\type_hash.cpp" />

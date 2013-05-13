@@ -113,6 +113,9 @@
     <ClCompile Include="src\master.cpp">
       <Filter>src\modules</Filter>
     </ClCompile>
+    <ClCompile Include="src\serialize.cpp">
+      <Filter>src\modules</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\type_zset.h">

@@ -10,8 +10,8 @@ namespace rediscpp
 	{
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
+		auto & members = client->get_members();
 		auto db = writable_db(client);
-		auto & members = client->get_values();
 		std::shared_ptr<type_set> set = db->get_set(key, current);
 		bool created = false;
 		if (!set) {
@@ -49,8 +49,8 @@ namespace rediscpp
 	{
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
+		auto & member = *client->get_members()[0];
 		auto db = readable_db(client);
-		auto & member = client->get_argument(2);
 		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (set && set->sismember(member)) {
 			client->response_integer1();
@@ -84,7 +84,7 @@ namespace rediscpp
 	{
 		auto & srckey = client->get_argument(1);
 		auto & destkey = client->get_argument(2);
-		auto & member = client->get_argument(3);
+		auto & member = *client->get_members()[0];
 		auto current = client->get_time();
 		auto db = writable_db(client);
 		std::shared_ptr<type_set> srcset = db->get_set(srckey, current);
@@ -186,7 +186,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto & argumens = client->get_arguments();
 		auto current = client->get_time();
-		auto & members = client->get_values();
+		auto & members = client->get_members();
 		auto db = writable_db(client);
 		std::shared_ptr<type_set> set = db->get_set(key, current);
 		if (!set || set->empty()) {

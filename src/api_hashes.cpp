@@ -8,10 +8,10 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hdel(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
+		auto & fields = client->get_fields();
 		auto db = writable_db(client);
-		auto & fields = client->get_keys();
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_integer0();
@@ -30,10 +30,10 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hexists(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
+		auto & field = *client->get_fields()[0];
 		auto db = readable_db(client);
-		auto & field = client->get_argument(2);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_integer0();
@@ -46,10 +46,10 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hget(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
+		auto & field = *client->get_fields()[0];
 		auto db = readable_db(client);
-		auto & field = client->get_argument(2);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
@@ -67,10 +67,10 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hmget(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		auto & fields = client->get_keys();
+		auto & fields = client->get_fields();
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
@@ -92,7 +92,7 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hlen(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
 		auto db = readable_db(client);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
@@ -123,10 +123,9 @@ namespace rediscpp
 	}
 	bool server_type::api_hgetall_internal(client_type * client, bool keys, bool vals)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
 		auto db = readable_db(client);
-		auto & field = client->get_argument(2);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			client->response_null();
@@ -162,9 +161,9 @@ namespace rediscpp
 	///@note Available since 2.0.0.
 	bool server_type::api_hincrby(client_type * client)
 	{
-		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto & field = client->get_argument(2);
+		auto & key = *client->get_keys()[0];
+		auto & field = *client->get_fields()[0];
 		auto & increment = client->get_argument(3);
 		bool is_valid = true;
 		int64_t intval = atoi64(increment, is_valid);
@@ -198,9 +197,9 @@ namespace rediscpp
 	///@note Available since 2.6.0.
 	bool server_type::api_hincrbyfloat(client_type * client)
 	{
-		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto & field = client->get_argument(2);
+		auto & key = *client->get_keys()[0];
+		auto & field = *client->get_fields()[0];
 		auto & increment = client->get_argument(3);
 		auto db = writable_db(client);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
@@ -238,11 +237,11 @@ namespace rediscpp
 	}
 	bool server_type::api_hset_internal(client_type * client, bool nx)
 	{
-		auto & key = client->get_argument(1);
 		auto current = client->get_time();
+		auto & key = *client->get_keys()[0];
+		auto & field = *client->get_fields()[0];
+		auto & value = *client->get_values()[0];
 		auto db = writable_db(client);
-		auto & field = client->get_argument(2);
-		auto & value = client->get_argument(3);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		bool create = true;
 		if (hash) {
@@ -260,11 +259,11 @@ namespace rediscpp
 	}
 	bool server_type::api_hmset(client_type * client)
 	{
-		auto & key = client->get_argument(1);
+		auto & key = *client->get_keys()[0];
 		auto current = client->get_time();
-		auto db = writable_db(client);
-		auto & fields = client->get_keys();
+		auto & fields = client->get_fields();
 		auto & values = client->get_values();
+		auto db = writable_db(client);
 		std::shared_ptr<type_hash> hash = db->get_hash(key, current);
 		if (!hash) {
 			hash.reset(new type_hash(current));
