@@ -189,7 +189,6 @@ namespace rediscpp
 			hash->hset(field, newstr);
 			hash->update(current);
 		}
-		db->replace(key, hash);
 		client->response_integer(newval);
 		return true;
 	}
@@ -219,7 +218,6 @@ namespace rediscpp
 			hash->hset(field, newstr);
 			hash->update(current);
 		}
-		db->replace(key, hash);
 		client->response_bulk(newstr);
 		return true;
 	}
