@@ -2,6 +2,7 @@
 #define INCLUDE_REDIS_CPP_TYPE_INTERFACE_H
 
 #include "common.h"
+#include "timeval.h"
 
 namespace rediscpp
 {
@@ -20,12 +21,16 @@ namespace rediscpp
 	};
 	class type_interface
 	{
+		timeval_type modified;///<ÅŒã‚ÉC³‚µ‚½ŽžŠÔ(WATCH—p)
 	public:
 		type_interface();
+		type_interface(const timeval_type & current);
 		virtual ~type_interface();
 		virtual type_types get_type() const = 0;
 		virtual void output(std::shared_ptr<file_type> & dst) const = 0;
 		virtual void output(std::string & dst) const = 0;
+		timeval_type get_last_modified_time() const;
+		void update(const timeval_type & current);
 		static void write_len(std::shared_ptr<file_type> & dst, uint32_t len);
 		static void write_string(std::shared_ptr<file_type> & dst, const std::string & str);
 		static void write_double(std::shared_ptr<file_type> & dst, double val);

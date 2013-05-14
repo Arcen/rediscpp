@@ -48,7 +48,7 @@ namespace rediscpp
 		auto current = client->get_time();
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it) {
 			auto & key = **it;
-			if (db->get(key, current).get()) {
+			if (db->get(key, current)) {
 				client->response_integer1();
 			} else {
 				client->response_integer0();
@@ -187,7 +187,7 @@ namespace rediscpp
 			client->response_integer0();
 			return true;
 		}
-		if (dst_db->get(key, current).get()) {
+		if (dst_db->get(key, current)) {
 			client->response_integer0();
 			return true;
 		}
@@ -249,7 +249,7 @@ namespace rediscpp
 			throw std::runtime_error("ERR same key");
 		}
 		auto dst_value = db->get(newkey, current);
-		if (dst_value.get()) {
+		if (dst_value) {
 			client->response_integer0();
 			return true;
 		}
@@ -268,7 +268,7 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto value = db->get(key, current);
-		if (!value.get()) {
+		if (!value) {
 			client->response_status("none");
 			return true;
 		}
@@ -574,7 +574,7 @@ namespace rediscpp
 		auto value = db->get(key, current);
 		size_t values_size = 0;
 		std::vector<std::string> values;
-		if (value.get()) {
+		if (value) {
 			std::shared_ptr<type_list> list = std::dynamic_pointer_cast<type_list>(value);
 			std::shared_ptr<type_set> set = std::dynamic_pointer_cast<type_set>(value);
 			std::shared_ptr<type_zset> zset = std::dynamic_pointer_cast<type_zset>(value);
@@ -599,6 +599,7 @@ namespace rediscpp
 		}
 		std::list<bool> nulls;
 		std::list<std::string> list_values;
+		size_t list_count = 0;
 		if (get_pattern.empty()) {
 			get_pattern.push_back(pattern_type("#"));
 		}
@@ -627,6 +628,7 @@ namespace rediscpp
 				auto key = pattern.get_key(value);
 				if (key == "#") {
 					list_values.push_back(value);
+					++list_count;
 					nulls.push_back(false);
 					continue;
 				}
@@ -635,6 +637,7 @@ namespace rediscpp
 					auto strval = std::dynamic_pointer_cast<type_string>(val);
 					if (strval) {
 						list_values.push_back(strval->get());
+						++list_count;
 						nulls.push_back(false);
 						continue;
 					}
@@ -644,17 +647,20 @@ namespace rediscpp
 						auto v = hashval->hget(pattern.field);
 						if (v.second) {
 							list_values.push_back(v.first);
+							++list_count;
 							nulls.push_back(false);
 							continue;
 						}
 					}
 				}
 				list_values.push_back(std::string());
+				++list_count;
 				nulls.push_back(true);
 			}
 		}
 		values.clear();
-		std::shared_ptr<type_list> result(new type_list(std::move(list_values)));
+		std::shared_ptr<type_list> result(new type_list());
+		result->move(std::move(list_values), list_count);
 		if (store) {
 			client->response_integer(result->size());
 		} else {

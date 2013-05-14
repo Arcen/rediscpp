@@ -10,6 +10,7 @@ namespace rediscpp
 		std::set<std::string> value;
 	public:
 		type_set();
+		type_set(const timeval_type & current);
 		virtual ~type_set();
 		virtual type_types get_type() const { return set_type; }
 		virtual void output(std::shared_ptr<file_type> & dst) const;

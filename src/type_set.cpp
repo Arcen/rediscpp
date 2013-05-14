@@ -5,6 +5,10 @@ namespace rediscpp
 	type_set::type_set()
 	{
 	}
+	type_set::type_set(const timeval_type & current)
+		: type_interface(current)
+	{
+	}
 	type_set::~type_set(){}
 	size_t type_set::sadd(const std::vector<std::string*> & members)
 	{

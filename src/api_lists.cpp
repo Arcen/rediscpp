@@ -52,16 +52,16 @@ namespace rediscpp
 				try {
 					if (rpoplpush) {
 						auto &destkey = **keys.rbegin();
-						auto dest = db->get_list_with_expire(destkey, current);
+						std::shared_ptr<type_list> dest = db->get_list(destkey, current);
 						const std::string & result = list->rpop();
-						if (!dest.second) {
+						if (!dest) {
 							created = true;
-							dest.second.reset(new type_list());
-							dest.second->lpush(result);
-							db->replace(destkey, expire_info(current), dest.second);
+							dest.reset(new type_list(current));
+							dest->lpush(result);
+							db->replace(destkey, dest);
 						} else {
-							dest.second->lpush(result);
-							dest.first->update(current);
+							dest->lpush(result);
+							dest->update(current);
 						}
 						client->response_bulk(result);
 					} else {
@@ -122,17 +122,17 @@ namespace rediscpp
 			return true;
 		}
 		auto & destkey = client->get_argument(2);
-		auto dest = db->get_list_with_expire(destkey, current);
+		std::shared_ptr<type_list> dest = db->get_list(destkey, current);
 		const std::string & result = list->rpop();
 		bool created = false;
-		if (!dest.second) {
+		if (!dest) {
 			created = true;
-			dest.second.reset(new type_list());
-			dest.second->lpush(result);
-			db->replace(destkey, expire_info(current), dest.second);
+			dest.reset(new type_list(current));
+			dest->lpush(result);
+			db->replace(destkey, dest);
 		} else {
-			dest.second->lpush(result);
-			dest.first->update(current);
+			dest->lpush(result);
+			dest->update(current);
 		}
 		if (list->empty()) {
 			db->erase(key, current);
@@ -179,30 +179,30 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & values = client->get_values();
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
+		std::shared_ptr<type_list> list = db->get_list(key, current);
 		bool created = false;
-		if (!list.second) {
+		if (!list) {
 			if (exist) {
 				client->response_integer0();
 				return true;
 			}
-			list.second.reset(new type_list());
+			list.reset(new type_list(current));
 			if (left) {
-				list.second->lpush(values);
+				list->lpush(values);
 			} else {
-				list.second->rpush(values);
+				list->rpush(values);
 			}
-			db->replace(key, expire_info(current), list.second);
+			db->replace(key, list);
 			created = true;
 		} else {
 			if (left) {
-				list.second->lpush(values);
+				list->lpush(values);
 			} else {
-				list.second->rpush(values);
+				list->rpush(values);
 			}
-			list.first->update(current);
+			list->update(current);
 		}
-		client->response_integer(list.second->size());
+		client->response_integer(list->size());
 		//新規追加時の通知
 		if (created) {
 			if (client->in_exec()) {
@@ -228,13 +228,13 @@ namespace rediscpp
 		auto & value = client->get_argument(4);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
-		if (!list.second || !list.second->linsert(pivot, value, before)) {
+		std::shared_ptr<type_list> list = db->get_list(key, current);
+		if (!list || !list->linsert(pivot, value, before)) {
 			client->response_integer(0);
 			return true;
 		}
-		list.first->update(current);
-		client->response_integer(list.second->size());
+		list->update(current);
+		client->response_integer(list->size());
 		return true;
 	}
 	///左から取得
@@ -255,16 +255,16 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
-		if (!list.second) {
+		std::shared_ptr<type_list> list = db->get_list(key, current);
+		if (!list) {
 			client->response_null();
 			return true;
 		}
-		const std::string & value = left ? list.second->lpop() : list.second->rpop();
-		if (list.second->empty()) {
+		const std::string & value = left ? list->lpop() : list->rpop();
+		if (list->empty()) {
 			db->erase(key, current);
 		} else {
-			list.first->update(current);
+			list->update(current);
 		}
 		client->response_bulk(value);
 		return true;
@@ -342,16 +342,16 @@ namespace rediscpp
 		auto & value = client->get_argument(3);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
-		if (!list.second) {
+		std::shared_ptr<type_list> list = db->get_list(key, current);
+		if (!list) {
 			client->response_integer0();
 			return true;
 		}
-		int64_t removed = list.second->lrem(count, value);
-		if (list.second->empty()) {
+		int64_t removed = list->lrem(count, value);
+		if (list->empty()) {
 			db->erase(key, current);
 		} else {
-			list.first->update(current);
+			list->update(current);
 		}
 		client->response_integer(removed);
 		return true;
@@ -362,18 +362,18 @@ namespace rediscpp
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
-		if (!list.second) {
+		std::shared_ptr<type_list> list = db->get_list(key, current);
+		if (!list) {
 			client->response_ok();
 			return true;
 		}
-		int64_t start = pos_fix(atoi64(client->get_argument(2)), list.second->size());
-		int64_t end = std::min<int64_t>(list.second->size(), pos_fix(atoi64(client->get_argument(3)), list.second->size()) + 1);
-		list.second->trim(start, end);
-		if (list.second->empty()) {
+		int64_t start = pos_fix(atoi64(client->get_argument(2)), list->size());
+		int64_t end = std::min<int64_t>(list->size(), pos_fix(atoi64(client->get_argument(3)), list->size()) + 1);
+		list->trim(start, end);
+		if (list->empty()) {
 			db->erase(key, current);
 		} else {
-			list.first->update(current);
+			list->update(current);
 		}
 		client->response_ok();
 		return true;
@@ -385,16 +385,16 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & value = client->get_argument(3);
 		auto db = writable_db(client);
-		auto list = db->get_list_with_expire(key, current);
-		if (!list.second) {
+		std::shared_ptr<type_list> list = db->get_list(key, current);
+		if (!list) {
 			client->response_ok();
 			return true;
 		}
-		int64_t index = pos_fix(atoi64(client->get_argument(2)), list.second->size());
-		if (!list.second->set(index, value)) {
+		int64_t index = pos_fix(atoi64(client->get_argument(2)), list->size());
+		if (!list->set(index, value)) {
 			throw std::runtime_error("ERR index out of range");
 		}
-		list.first->update(current);
+		list->update(current);
 		client->response_ok();
 		return true;
 	}

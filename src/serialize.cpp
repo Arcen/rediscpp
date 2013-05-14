@@ -212,12 +212,16 @@ namespace rediscpp
 	std::shared_ptr<type_string> type_string::input(std::shared_ptr<file_type> & src)
 	{
 		auto strval = read_string(src);
-		return std::shared_ptr<type_string>(new type_string(std::move(strval)));
+		std::shared_ptr<type_string> result(new type_string());
+		result->set(strval);
+		return result;
 	}
 	std::shared_ptr<type_string> type_string::input(std::pair<std::string::const_iterator,std::string::const_iterator> & src)
 	{
 		auto strval = read_string(src);
-		return std::shared_ptr<type_string>(new type_string(std::move(strval)));
+		std::shared_ptr<type_string> result(new type_string());
+		result->set(strval);
+		return result;
 	}
 	void type_list::output(std::shared_ptr<file_type> & dst) const
 	{
@@ -237,7 +241,7 @@ namespace rediscpp
 	{
 		std::shared_ptr<type_list> result(new type_list());
 		std::list<std::string> & value = result->value;
-		size_t & size = result->size_;
+		size_t & size = result->count;
 		size = read_len(src);
 		for (size_t i = 0, n = size; i < n; ++i) {
 			value.push_back(read_string(src));
@@ -248,7 +252,7 @@ namespace rediscpp
 	{
 		std::shared_ptr<type_list> result(new type_list());
 		std::list<std::string> & value = result->value;
-		size_t & size = result->size_;
+		size_t & size = result->count;
 		size = read_len(src);
 		for (size_t i = 0, n = size; i < n; ++i) {
 			value.push_back(read_string(src));

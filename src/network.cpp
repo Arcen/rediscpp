@@ -474,7 +474,7 @@ namespace rediscpp
 	}
 	uint32_t socket_type::get_events()
 	{
-		if (local.get()) {//server
+		if (local) {//server
 			return EPOLLIN;
 		}
 		return EPOLLIN | EPOLLET | EPOLLONESHOT | (should_send() ? EPOLLOUT : 0);
@@ -483,7 +483,7 @@ namespace rediscpp
 	{
 		if (0 <= fd) {
 			auto poll = this->poll.lock();
-			if (poll.get()) {
+			if (poll) {
 				auto self = this->self.lock();
 				if (self) {
 					poll->remove(self);
@@ -496,7 +496,7 @@ namespace rediscpp
 	void pollable_type::mod()
 	{
 		auto poll_ = poll.lock();
-		if (poll_.get()) {
+		if (poll_) {
 			auto self_ = self.lock();
 			if (self_) {
 				poll_->modify(self_);

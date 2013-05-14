@@ -66,6 +66,10 @@ namespace rediscpp
 	type_zset::type_zset()
 	{
 	}
+	type_zset::type_zset(const timeval_type & current)
+		: type_interface(current)
+	{
+	}
 	type_zset::~type_zset()
 	{
 	}

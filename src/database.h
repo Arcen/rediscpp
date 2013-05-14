@@ -57,6 +57,8 @@ namespace rediscpp
 		bool erase(const std::string & key, const timeval_type & current);
 		bool insert(const std::string & key, const expire_info & expire, std::shared_ptr<type_interface> value, const timeval_type & current);
 		void replace(const std::string & key, const expire_info & expire, std::shared_ptr<type_interface> value);
+		bool insert(const std::string & key, std::shared_ptr<type_interface> value, const timeval_type & current);
+		void replace(const std::string & key, std::shared_ptr<type_interface> value);
 		std::string randomkey(const timeval_type & current);
 		void regist_expiring_key(timeval_type tv, const std::string & key) const;
 		void flush_expiring_key(const timeval_type & current);

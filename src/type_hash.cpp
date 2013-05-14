@@ -5,6 +5,10 @@ namespace rediscpp
 	type_hash::type_hash()
 	{
 	}
+	type_hash::type_hash(const timeval_type & current)
+		: type_interface(current)
+	{
+	}
 	type_hash::~type_hash()
 	{
 	}

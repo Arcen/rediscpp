@@ -109,12 +109,14 @@ namespace rediscpp
 				return true;
 			}
 		}
-		std::shared_ptr<type_string> str(new type_string(value));
+		std::shared_ptr<type_string> str(new type_string(current));
+		str->set(value);
 		expire_info info;
 		if (0 <= expire) {
 			timeval_type tv = current;
 			tv.add_msec(expire);
 			info.expire(tv);
+			db->regist_expiring_key(tv, key);
 		}
 		db->replace(key, info, str);
 		client->response_ok();
@@ -145,14 +147,15 @@ namespace rediscpp
 		auto & value = client->get_argument(2);
 		auto db = writable_db(client);
 		auto current = client->get_time();
-		auto now = db->get_string_with_expire(key, current);
-		if (now.second) {
-			int64_t len = now.second->append(value);
-			now.first->update(current);
+		auto now = db->get_string(key, current);
+		if (now) {
+			int64_t len = now->append(value);
+			now->update(current);
 			client->response_integer(len);
 		} else {
-			std::shared_ptr<type_string> str(new type_string(value));
-			db->replace(key, expire_info(current), str);
+			std::shared_ptr<type_string> str(new type_string(current));
+			str->set(value);
+			db->replace(key, str);
 			client->response_integer(value.size());
 		}
 		return true;
@@ -202,16 +205,16 @@ namespace rediscpp
 		auto & newstr = client->get_argument(3);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto value = db->get_string_with_expire(key, current);
-		bool create = (!value.second);
+		auto value = db->get_string(key, current);
+		bool create = (!value);
 		if (create) {
-			value.second.reset(new type_string(std::string()));
+			value.reset(new type_string(current));
 		}
-		int64_t len = value.second->setrange(offset, newstr);
+		int64_t len = value->setrange(offset, newstr);
 		if (create) {
-			db->replace(key, expire_info(current), value.second);
+			db->replace(key, value);
 		} else {
-			value.first->update(current);
+			value->update(current);
 		}
 		client->response_integer(len);
 		return true;
@@ -226,16 +229,17 @@ namespace rediscpp
 		auto & newstr = client->get_argument(2);
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto value = db->get_string_with_expire(key, current);
-		bool create = (!value.second);
+		auto value = db->get_string(key, current);
+		bool create = (!value);
 		if (create) {
-			value.second.reset(new type_string(std::move(newstr)));
-			db->replace(key, expire_info(current), value.second);
+			value.reset(new type_string(current));
+			value->set(newstr);
+			db->replace(key, value);
 			client->response_null();
 		} else {
-			client->response_bulk(value.second->ref());
-			value.second->set(newstr);
-			value.first->update(current);
+			client->response_bulk(value->ref());
+			value->set(newstr);
+			value->update(current);
 		}
 		return true;
 	}
@@ -269,12 +273,12 @@ namespace rediscpp
 		auto & keys = client->get_keys();
 		auto & values = client->get_values();
 		auto current = client->get_time();
-		expire_info expire(current);
 		for (auto kit = keys.begin(), kend = keys.end(), vit = values.begin(), vend = values.end(); kit != kend && vit != vend; ++kit, ++vit) {
 			auto & key = **kit;
 			auto & value = **vit;
-			std::shared_ptr<type_string> str(new type_string(value));
-			db->replace(key, expire, str);
+			std::shared_ptr<type_string> str(new type_string(current));
+			str->set(value);
+			db->replace(key, str);
 		}
 		client->response_ok();
 	}
@@ -296,12 +300,12 @@ namespace rediscpp
 				return true;
 			}
 		}
-		expire_info expire(current);
 		for (auto kit = keys.begin(), kend = keys.end(), vit = values.begin(), vend = values.end(); kit != kend && vit != vend; ++kit, ++vit) {
 			auto & key = **kit;
 			auto & value = **vit;
-			std::shared_ptr<type_string> str(new type_string(value));
-			db->replace(key, expire, str);
+			std::shared_ptr<type_string> str(new type_string(current));
+			str->set(value);
+			db->replace(key, str);
 		}
 		client->response_integer1();
 		return true;
@@ -407,17 +411,18 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & key = client->get_argument(1);
 		auto current = client->get_time();
-		auto value = db->get_string_with_expire(key, current);
+		auto value = db->get_string(key, current);
 		bool created = false;
-		if (!value.second) {
-			value.second.reset(new type_string("0"));
+		if (!value) {
+			value.reset(new type_string(current));
+			value->set("0");
 			created = true;
 		}
-		int64_t newval = value.second->incrby(count);
+		int64_t newval = value->incrby(count);
 		if (!created) {
-			value.first->update(current);
+			value->update(current);
 		} else {
-			db->replace(key, expire_info(current), value.second);
+			db->replace(key, value);
 		}
 		client->response_integer(newval);
 		return true;
@@ -437,8 +442,9 @@ namespace rediscpp
 		auto value = db->get_string(key, current);
 		auto & increment = client->get_argument(2);
 		std::string newstr = incrbyfloat(value ? value->ref() : "0", increment);
-		std::shared_ptr<type_string> str(new type_string(newstr));
-		db->replace(key, expire_info(current), str);
+		std::shared_ptr<type_string> str(new type_string(current));
+		str->set(newstr);
+		db->replace(key, str);
 		client->response_bulk(newstr);
 		return true;
 	}
@@ -558,8 +564,9 @@ namespace rediscpp
 		if (max_size == 0) {
 			db->erase(destkey, current);
 		} else {
-			std::shared_ptr<type_string> str(new type_string(deststrval));
-			db->replace(destkey, expire_info(current), str);
+			std::shared_ptr<type_string> str(new type_string(current));
+			str->set(deststrval);
+			db->replace(destkey, str);
 		}
 		client->response_integer(max_size);
 		return true;
@@ -615,20 +622,21 @@ namespace rediscpp
 		}
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		auto value = db->get_string_with_expire(key, current);
+		auto value = db->get_string(key, current);
 		int64_t offset_byte = offset / 8;
 		int64_t offset_bit = offset % 8;
-		if (!value.second) {
+		if (!value) {
 			std::string string(offset_byte + 1, '\0');
 			if (set) {
 				*string.rbegin() = static_cast<char>(0x80 >> offset_bit);
 			}
-			std::shared_ptr<type_string> str(new type_string(string));
-			db->replace(key, expire_info(current), str);
+			std::shared_ptr<type_string> str(new type_string(current));
+			str->set(string);
+			db->replace(key, str);
 			client->response_integer0();
 			return true;
 		}
-		auto & string = value.second->ref();
+		auto & string = value->ref();
 		if (string.size() <= offset_byte) {
 			string.resize(offset_byte + 1, '\0');
 		}
@@ -640,7 +648,7 @@ namespace rediscpp
 		} else {
 			target_byte &= ~target_bit;
 		}
-		value.first->update(current);
+		value->update(current);
 		if (old) {
 			client->response_integer1();
 		} else {

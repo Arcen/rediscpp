@@ -10,6 +10,7 @@ namespace rediscpp
 		std::unordered_map<std::string, std::string> value;
 	public:
 		type_hash();
+		type_hash(const timeval_type & current);
 		virtual ~type_hash();
 		virtual type_types get_type() const { return hash_type; }
 		virtual void output(std::shared_ptr<file_type> & dst) const;

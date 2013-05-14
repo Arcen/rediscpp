@@ -136,6 +136,26 @@ namespace rediscpp
 			regist_expiring_key(expire.at(), key);
 		}
 	}
+	bool database_type::insert(const std::string & key, std::shared_ptr<type_interface> value, const timeval_type & current)
+	{
+		auto it = values.find(key);
+		if (it == values.end()) {
+			return values.insert(std::make_pair(key, std::make_pair(std::shared_ptr<expire_info>(new expire_info()), value))).second;
+		} else {
+			if (it->second.first->is_expired(current)) {
+				it->second.first->persist();
+				it->second.second = value;
+				return true;
+			}
+			return false;
+		}
+	}
+	void database_type::replace(const std::string & key, std::shared_ptr<type_interface> value)
+	{
+		auto & dst = values[key];
+		dst.first.reset(new expire_info());
+		dst.second = value;
+	}
 	std::string database_type::randomkey(const timeval_type & current)
 	{
 		while (!values.empty()) {

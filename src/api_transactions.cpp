@@ -74,14 +74,14 @@ namespace rediscpp
 			auto key = std::get<0>(watch);
 			auto index = std::get<1>(watch);
 			auto & db = *dbs[index];
-			auto value = db->get_with_expire(key, current);
-			if (!value.second.get()) {
+			auto value = db->get(key, current);
+			if (!value) {
 				client->response_null_multi_bulk();
 				client->discard();
 				return true;
 			}
 			auto watching_time = std::get<2>(watch);
-			if (watching_time < value.first->get_last_modified_time()) {
+			if (watching_time < value->get_last_modified_time()) {
 				client->response_null_multi_bulk();
 				client->discard();
 				return true;

@@ -36,6 +36,7 @@ namespace rediscpp
 	public:
 		typedef std::set<std::shared_ptr<value_type>, score_comparer>::const_iterator const_iterator;
 		type_zset();
+		type_zset(const timeval_type & current);
 		virtual ~type_zset();
 		virtual type_types get_type() const { return zset_type; }
 		virtual void output(std::shared_ptr<file_type> & dst) const;

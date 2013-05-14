@@ -13,10 +13,10 @@ namespace rediscpp
 		auto db = writable_db(client);
 		auto & scores = client->get_scores();
 		auto & members = client->get_members();
-		auto zset = db->get_zset_with_expire(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		bool created = false;
-		if (!zset.second) {
-			zset.second.reset(new type_zset());
+		if (!zset) {
+			zset.reset(new type_zset(current));
 			created = true;
 		}
 		std::vector<type_zset::score_type> scores_(scores.size());
@@ -27,11 +27,11 @@ namespace rediscpp
 				throw std::runtime_error("ERR score is not valid number");
 			}
 		}
-		int64_t added = zset.second->zadd(scores_, members);
+		int64_t added = zset->zadd(scores_, members);
 		if (created) {
-			db->replace(key, expire_info(current), zset.second);
+			db->replace(key, zset);
 		} else {
-			zset.first->update(current);
+			zset->update(current);
 		}
 		client->response_integer(added);
 		return true;
@@ -102,20 +102,20 @@ namespace rediscpp
 			throw std::runtime_error("ERR increment is not valid");
 		}
 		auto db = writable_db(client);
-		auto zset = db->get_zset_with_expire(key, current);
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
 		bool created = false;
-		if (!zset.second) {
-			zset.second.reset(new type_zset());
+		if (!zset) {
+			zset.reset(new type_zset(current));
 			created = true;
 		}
-		type_zset::score_type result_score = zset.second->zincrby(member, increment_score);
+		type_zset::score_type result_score = zset->zincrby(member, increment_score);
 		if (isnan(result_score)) {
 			throw std::runtime_error("ERR nan by increment");
 		}
 		if (created) {
-			db->replace(key, expire_info(current), zset.second);
+			db->replace(key, zset);
 		} else {
-			zset.first->update(current);
+			zset->update(current);
 		}
 		client->response_bulk(format("%g", result_score));
 		return true;
@@ -195,7 +195,7 @@ namespace rediscpp
 		}
 		auto current = client->get_time();
 		auto db = writable_db(client);
-		std::shared_ptr<type_zset> zset(new type_zset());
+		std::shared_ptr<type_zset> zset(new type_zset(current));
 		bool first = true;
 		auto wit = weights.begin();
 		for (auto it = keys.begin(), end = keys.end(); it != end; ++it, ++wit) {
@@ -214,7 +214,7 @@ namespace rediscpp
 				}
 			}
 		}
-		db->replace(destination, expire_info(current), zset);
+		db->replace(destination, zset);
 		client->response_integer(zset->size());
 		return true;
 	}
@@ -493,15 +493,15 @@ namespace rediscpp
 		auto current = client->get_time();
 		auto & members = client->get_members();
 		auto db = writable_db(client);
-		auto zset = db->get_zset_with_expire(key, current);
-		if (!zset.second) {
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
+		if (!zset) {
 			client->response_integer0();
 			return true;
 		}
-		size_t removed = zset.second->zrem(members);
+		size_t removed = zset->zrem(members);
 		if (removed) {
-			zset.first->update(current);
-			if (zset.second->empty()) {
+			zset->update(current);
+			if (zset->empty()) {
 				db->erase(key, current);
 			}
 		}
@@ -525,19 +525,19 @@ namespace rediscpp
 			throw std::runtime_error("ERR stop is not valid integer");
 		}
 		auto db = writable_db(client);
-		auto zset = db->get_zset_with_expire(key, current);
-		if (!zset.second) {
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
+		if (!zset) {
 			client->response_integer0();
 			return true;
 		}
-		size_t size = zset.second->size();
+		size_t size = zset->size();
 		start = pos_fix(start, size);
 		stop = std::min<int64_t>(size, pos_fix(stop, size) + 1);
 		if (stop <= start) {
 			client->response_integer0();
 			return true;
 		}
-		auto range = zset.second->zrange(start, stop);
+		auto range = zset->zrange(start, stop);
 		std::list<std::string> members_;
 		size_t count = 0;
 		for (; range.first != range.second; ++range.first) {
@@ -549,10 +549,10 @@ namespace rediscpp
 		for (auto it = members_.begin(), end = members_.end(); it != end; ++it) {
 			members.push_back(&*it);
 		}
-		size_t removed = zset.second->zrem(members);
+		size_t removed = zset->zrem(members);
 		if (removed) {
-			zset.first->update(current);
-			if (zset.second->empty()) {
+			zset->update(current);
+			if (zset->empty()) {
 				db->erase(key, current);
 			}
 		}
@@ -588,12 +588,12 @@ namespace rediscpp
 			throw std::runtime_error("ERR max is not valid");
 		}
 		auto db = writable_db(client);
-		auto zset = db->get_zset_with_expire(key, current);
-		if (!zset.second) {
+		std::shared_ptr<type_zset> zset = db->get_zset(key, current);
+		if (!zset) {
 			client->response_integer0();
 			return true;
 		}
-		auto range = zset.second->zrangebyscore(minimum_score, maximum_score, inclusive_minimum, inclusive_maximum);
+		auto range = zset->zrangebyscore(minimum_score, maximum_score, inclusive_minimum, inclusive_maximum);
 		std::list<std::string> members_;
 		size_t count = 0;
 		for (; range.first != range.second; ++range.first) {
@@ -605,10 +605,10 @@ namespace rediscpp
 		for (auto it = members_.begin(), end = members_.end(); it != end; ++it) {
 			members.push_back(&*it);
 		}
-		size_t removed = zset.second->zrem(members);
+		size_t removed = zset->zrem(members);
 		if (removed) {
-			zset.first->update(current);
-			if (zset.second->empty()) {
+			zset->update(current);
+			if (zset->empty()) {
 				db->erase(key, current);
 			}
 		}

@@ -146,7 +146,7 @@ namespace rediscpp
 	void server_type::on_server(socket_type * s, int events)
 	{
 		std::shared_ptr<socket_type> cs = s->accept();
-		if (!cs.get()) {
+		if (!cs) {
 			return;
 		}
 		//新規受け付けは停止中

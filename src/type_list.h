@@ -8,11 +8,12 @@ namespace rediscpp
 	class type_list : public type_interface
 	{
 		std::list<std::string> value;
-		size_t size_;
+		size_t count;
 	public:
 		type_list();
-		type_list(std::list<std::string> && value_);
+		type_list(const timeval_type & current);
 		virtual ~type_list();
+		void move(std::list<std::string> && value, size_t count_);
 		virtual type_types get_type() const { return list_type; }
 		virtual void output(std::shared_ptr<file_type> & dst) const;
 		virtual void output(std::string & dst) const;
@@ -31,7 +32,7 @@ namespace rediscpp
 		bool set(int64_t index, const std::string & newval);
 		std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> get_range(size_t start, size_t end) const;
 		std::pair<std::list<std::string>::const_iterator,std::list<std::string>::const_iterator> get_range() const;
-		size_t lrem(int64_t count, const std::string & target);
+		size_t lrem(int64_t count_, const std::string & target);
 		void trim(size_t start, size_t end);
 	private:
 		std::list<std::string>::iterator get_it_internal(size_t index);

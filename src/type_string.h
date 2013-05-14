@@ -11,8 +11,8 @@ namespace rediscpp
 		int64_t int_value;
 		bool int_type;
 	public:
-		type_string(const std::string & string_value_);
-		type_string(std::string && string_value_);
+		type_string();
+		type_string(const timeval_type & current);
 		virtual ~type_string();
 		virtual type_types get_type() const { return string_type; }
 		virtual void output(std::shared_ptr<file_type> & dst) const;
