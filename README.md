@@ -33,7 +33,6 @@ No License yet.
     * No support persistence
 
 # TODO
-* some api should to use members, fields, scores to api check
 * not implemented api
 * optimize using rvalue
 * file refactoring
