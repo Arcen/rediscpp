@@ -56,7 +56,8 @@ namespace rediscpp
 			if (client->should_send()) {
 				client->send();
 			}
-		} else if (events & EPOLLOUT) {//send
+		}
+		if (events & EPOLLOUT) {//send
 			//lputs(__FILE__, __LINE__, info_level, "client EPOLLOUT");
 			client->send();
 		}

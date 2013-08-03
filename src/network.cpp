@@ -358,10 +358,56 @@ namespace rediscpp
 	bool socket_type::send()
 	{
 		if (fd < 0) {
-			lprintf(__FILE__, __LINE__, error_level, "send(%d) closed", fd);
 			return false;
 		}
 		if (!send_buffers.empty()) {
+#if 1
+			while (!send_buffers.empty()) {
+				auto & src = send_buffers.front();
+				auto & buf = src.first;
+				auto & offset = src.second;
+				if (buf.size() <= offset)
+				{
+					send_buffers.pop_front();
+					continue;
+				}
+				int interupt_count = 0;
+				ssize_t r;
+				while (true) {
+					r = ::send(fd, &buf[offset], static_cast<int>(buf.size() - offset), MSG_NOSIGNAL);
+					if (r < 0 && errno == EINTR) {
+						if (interupt_count < 3) {
+							++interupt_count;
+							continue;
+						}
+					}
+					break;
+				}
+				if (r < 0) {
+					if (errno == EAGAIN) {
+						return false;
+					}
+					if (errno == EPIPE) {
+						close();
+						return false;
+					}
+					send_buffers.clear();
+					broken = true;
+					lprintf(__FILE__, __LINE__, error_level, "send(%d) failed:%s", fd, string_error(errno).c_str());
+					return false;
+				}
+				if (0 < r) {
+					auto len = buf.size() - offset;
+					if (r < len) {
+						offset += r;
+						break;
+					} else {
+						r -= len;
+						send_buffers.pop_front();
+					}
+				}
+			}
+#else
 			std::vector<iovec> send_vectors(std::min<size_t>(IOV_MAX, send_buffers.size()));
 			for (size_t i = 0, n = send_buffers.size(); i < n; ++i) {
 				auto & src = send_buffers[i];
@@ -403,6 +449,7 @@ namespace rediscpp
 					send_buffers.pop_front();
 				}
 			}
+#endif
 		} else if (is_sendfile()) {
 			ssize_t r;
 			int interupt_count = 0;
@@ -437,6 +484,9 @@ namespace rediscpp
 	}
 	bool socket_type::recv()
 	{
+		if (fd < 0) {
+			return false;
+		}
 		if (finished_to_read) {
 			return true;
 		}
@@ -590,7 +640,7 @@ namespace rediscpp
 			auto pollable = reinterpret_cast<pollable_type*>(it->data.ptr);
 			if (pollable) {
 				auto socket = dynamic_cast<socket_type*>(pollable);
-				if (socket && (it->events & EPOLLOUT)) {
+				if (socket && 0 <= socket->get_handle() && (it->events & EPOLLOUT)) {
 					socket->send();
 				}
 			}
