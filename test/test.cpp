@@ -236,21 +236,27 @@ private:
 	}
 	virtual void run() = 0;
 };
+int loop = 1;
 std::string command;
 class thread_tester : public thread_type
 {
 public:
 	int index_;
+	int count_;
 	thread_tester(int index)
 		: index_(index)
+		, count_(0)
 	{
 	}
 	virtual void run()
 	{
 		char buf[1024];
-		sprintf(buf, command.c_str(), index_);
+		sprintf(buf, command.c_str(), index_, count_++);
 		system(buf);
-		shutdown();
+		if (loop <= count_)
+		{
+			shutdown();
+		}
 	}
 };
 
@@ -264,6 +270,12 @@ int main(int argc, char *argv[])
 				++i;
 				if (i < argc) {
 					thread = atoi(argv[i]);
+				}
+				continue;
+			case 'l':
+				++i;
+				if (i < argc) {
+					loop = atoi(argv[i]);
 				}
 				continue;
 			}
