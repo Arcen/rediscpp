@@ -502,7 +502,7 @@ namespace rediscpp
 		thread_pool.resize(threads);
 		for (auto it = thread_pool.begin(), end = thread_pool.end(); it != end; ++it) {
 			it->reset(new worker_type(*this));
-			(*it)->craete();
+			(*it)->create();
 		}
 	}
 	void server_type::shutdown_threads()

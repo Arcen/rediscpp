@@ -323,7 +323,7 @@ namespace rediscpp
 			, created(false)
 		{
 		}
-		bool craete(bool detached = false)
+		bool create(bool detached = false)
 		{
 			if (created) {
 				return false;
